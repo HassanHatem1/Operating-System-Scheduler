@@ -13,8 +13,10 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
-typedef short bool;
+// typedef short bool;
+
 #define true 1
 #define false 0
 
@@ -93,4 +95,90 @@ void setPCB(PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nFinish, 
 }
 //-----------------------------------------------------------------------------------------
 
-// ---------------------------Queue implementation for RR --------------------------------
+// ---------------------------Queue implementation for RR => src "Geeks for Geeks" --------------------------------
+struct Queue
+{
+    int front, rear, size;
+    unsigned capacity;
+    PCB *array;
+};
+
+// function to create a queue of given capacity.
+// It initializes size of queue as 0
+struct Queue * createQueue(unsigned capacity)
+{
+    struct Queue* queue = (struct Queue*)malloc(sizeof(struct Queue));
+    queue->capacity = capacity;
+    queue->front = queue->size = 0;
+ 
+    queue->rear = capacity - 1;
+    queue->array = (PCB*)malloc(queue->capacity * sizeof(PCB));
+    return queue;
+}
+
+// Queue is full when size becomes
+// equal to the capacity
+int isFull(struct Queue* queue)
+{
+    return (queue->size == queue->capacity);
+}
+ 
+// Queue is empty when size is 0
+int isEmpty(struct Queue* queue)
+{
+    return (queue->size == 0);
+}
+
+// Function to add an item to the queue.
+// It changes rear and size
+void enqueue(struct Queue* queue, PCB item)
+{
+    if (isFull(queue))
+        return;
+    queue->rear = (queue->rear + 1) % queue->capacity;
+    queue->array[queue->rear] = item;
+    queue->size = queue->size + 1;
+    // printf("%d enqueued to queue\n", item);
+}
+
+// Function to remove an item from queue.
+// It changes front and size
+PCB dequeue(struct Queue * queue)
+{
+    if (isEmpty(queue))
+    {
+        PCB pcb;
+        setPCB(&pcb, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+        return pcb;
+        
+    }
+    PCB item = queue->array[queue->front];
+    queue->front = (queue->front + 1) % queue->capacity;
+    queue->size = queue->size - 1;
+    return item;
+}
+PCB front(struct Queue* queue)
+{
+    if (isEmpty(queue))
+    {
+        PCB pcb;
+        setPCB(&pcb, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+        return pcb;
+        
+    }
+    return queue->array[queue->front];
+}
+ 
+// Function to get rear of queue
+PCB rear(struct Queue* queue)
+{
+    if (isEmpty(queue))
+    {
+        PCB pcb;
+        setPCB(&pcb, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+        return pcb;
+        
+    }
+    return queue->array[queue->rear];
+}
+
