@@ -139,13 +139,19 @@ int main(int argc, char *argv[])
         // compile the C program named clk.c using the gcc compiler with certain flags().
         // The compiled output is named clk.out.
         system("gcc clk.c -o clk.out -fno-stack-protector");
-        execl("./clk.out", "clk", NULL); // execute the clk.out file
+        int success = execl("./clk.out", "clk", NULL); // execute the clk.out file
+        if (success == -1)
+        {
+            printf("Error in executing clk.out\n");
+            exit(-1);
+        }
         exit(0);
     }
-
     // 4. Use this function after creating the clock process to initialize clock
 
-    // initClk();
+    initClk();
+
+    printf("generator clk start : %d \n", getClk());
 
     // 5. Create a data structure for processes and provide it with its parameters.
     // --> already done in the beginning of the main function
@@ -174,7 +180,7 @@ int main(int argc, char *argv[])
     }
 
     // 7. Clear clock resources
-    destroyClk(true);
+    // destroyClk(true);
 }
 
 void clearResources(int signum)
