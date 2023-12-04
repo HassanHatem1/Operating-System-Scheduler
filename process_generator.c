@@ -17,6 +17,7 @@ int main(int argc, char *argv[])
 
     // 1. Read the input files.
     FILE *file = fopen("processes.txt", "r");
+
     if (file == NULL)
     {
         printf("Error! File not found.\n");
@@ -33,18 +34,26 @@ int main(int argc, char *argv[])
             processes_count++;
     }
     fclose(file);
-
+    processes_count--; // to exclude the first line
+    printf("Number of processes: %d\n", processes_count);
     // create an array of processes with the size of the number of processes
     Process processes[processes_count];
 
     // reopen the file to read the processes data from the document and store them in the array
     file = fopen("processes.txt", "r");
+
+    fscanf(file, "%*[^\n]"); // Skip the first line
     for (int i = 0; i < processes_count; i++)
-        // here t%d will make fscanf ignore the space and read the number only
-        fscanf(file, "%d t%d t%d t%d", &processes[i].id, &processes[i].priority, &processes[i].arrival_time, &processes[i].running_time);
+    { // here t%d will make fscanf ignore the space and read the number only
+        fscanf(file, "%d\t%d\t%d\t%d", &processes[i].id, &processes[i].arrival_time, &processes[i].running_time, &processes[i].priority);
+    }
     fclose(file);
 
-    // 2. Ask the user for the chosen scheduling algorithm and its parameters, if there are any.
+    printf("processes data is read successfully\n");
+    for (int i = 0; i < processes_count; i++)
+        printf("Process %d: id : %d arrival: %d runtime : %d priority : %d\n", i + 1, processes[i].id, processes[i].arrival_time, processes[i].running_time, processes[i].priority);
+
+    // 2. Ask the user for the chosen sc1heduling algorithm and its parameters, if there are any.
     int algorithm_num;
     printf("-----------------PROCESS_GENERATOR-----------------\n");
     printf("Choose a scheduling algorithm from the following:\n");
@@ -52,7 +61,7 @@ int main(int argc, char *argv[])
     printf("2. Shortest Remaining time Next (SRTN).\n");
     printf("3. Round Robin (RR).\n");
     scanf("%d", &algorithm_num);
-    while(algorithm_num < 1 || algorithm_num > 3)
+    while (algorithm_num < 1 || algorithm_num > 3)
     {
         printf("Please enter a valid algorithm number: ");
         scanf("%d", &algorithm_num);
@@ -105,12 +114,13 @@ int main(int argc, char *argv[])
         // compile the C program named clk.c using the gcc compiler with certain flags().
         // The compiled output is named clk.out.
         system("gcc clk.c -o clk.out -fno-stack-protector");
-        execl("./clk.out", NULL); // execute the clk.out file
+        execl("./clk.out", "clk", NULL); // execute the clk.out file
         exit(0);
     }
 
     // 4. Use this function after creating the clock process to initialize clock
-    initClk();
+
+    // initClk();
 
     // 5. Create a data structure for processes and provide it with its parameters.
     // --> already done in the beginning of the main function
@@ -121,15 +131,14 @@ int main(int argc, char *argv[])
     {
         if (processes[index].arrival_time == getClk())
         {
-           // send_val = msgsnd(msgq_id, &processes[current], sizeof(struct processData), !IPC_NOWAIT);
-            //current++;
+            // send_val = msgsnd(msgq_id, &processes[current], sizeof(struct processData), !IPC_NOWAIT);
+            // current++;
         }
     }
 
-// 7. Clear clock resources
-destroyClk(true);
+    // 7. Clear clock resources
+    // destroyClk(true);
 }
-
 
 void clearResources(int signum)
 {
