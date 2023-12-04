@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 typedef short bool;
 #define true 1
@@ -89,3 +92,5 @@ void setPCB(PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nFinish, 
     pcb->wait = nWait;
 }
 //-----------------------------------------------------------------------------------------
+
+// ---------------------------Queue implementation for RR --------------------------------
