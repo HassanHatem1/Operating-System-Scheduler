@@ -1,6 +1,7 @@
 #include "headers.h"
 #include <stdio.h>
 
+int msgq_id;
 typedef struct
 {
     int id;
@@ -9,11 +10,29 @@ typedef struct
     int running_time;
 } Process;
 
+typedef struct
+{
+    long mtype;
+    Process proc;
+} Msgbuff;
+
 void clearResources(int);
 
 int main(int argc, char *argv[])
 {
     signal(SIGINT, clearResources);
+
+    // Create and initialize the message queue
+    key_t key_id;
+    FILE *key = fopen("keyfile", "r");
+    key_id = ftok("keyfile", 65);
+    int send_val;
+    msgq_id = msgget(key_id, 0666 | IPC_CREAT);
+    if (msgq_id == -1)
+    {
+        perror("Error in creating the message queue\n");
+        exit(-1);
+    }
 
     // 1. Read the input files.
     FILE *file = fopen("processes.txt", "r");
@@ -21,7 +40,7 @@ int main(int argc, char *argv[])
     if (file == NULL)
     {
         printf("Error! File not found.\n");
-        return 1;
+        exit(-1);
     }
 
     // get the number of processes from the document by counting the lines
@@ -80,7 +99,10 @@ int main(int argc, char *argv[])
     // Create the scheduler process
     pid_t scheduler_pid = fork();
     if (scheduler_pid == -1)
+    {
         perror("Error in creating scheduler process\n");
+        exit(-1);
+    }
     else if (scheduler_pid == 0) // This is the scheduler process
     {
         // compile the C program named scheduler.c using the gcc compiler with certain flags ().
@@ -108,7 +130,10 @@ int main(int argc, char *argv[])
     // Create the clock process
     pid_t clock_pid = fork();
     if (scheduler_pid == -1)
+    {
         perror("Error in creating scheduler process\n");
+        exit(-1);
+    }
     else if (clock_pid == 0) // This is the clock process
     {
         // compile the C program named clk.c using the gcc compiler with certain flags().
@@ -133,17 +158,29 @@ int main(int argc, char *argv[])
         {
             // send_val = msgsnd(msgq_id, &processes[current], sizeof(struct processData), !IPC_NOWAIT);
             // current++;
+            // Create a message and send it to the queue
+            Msgbuff message;
+            message.mtype = 1; // mtype is for the scheduler to know that this is a process
+            // shouldn't this be unnecessary since we have only one way comm between scheduler and generator?
+            message.proc = processes[index];
+            int send_val = msgsnd(msgq_id, &message, sizeof(message.proc), !IPC_NOWAIT);
+            if (send_val == -1)
+            {
+                perror("Error in sending the message\n");
+                exit(-1);
+            }
+            index++;
         }
     }
 
     // 7. Clear clock resources
-    // destroyClk(true);
+    destroyClk(true);
 }
 
 void clearResources(int signum)
 {
     // TODO Clears all resources in case of interruption
     printf("Clearing due to interruption\n");
-    // msgctl(msgq_id, IPC_RMID, (struct msqid_ds *)0);
+    msgctl(msgq_id, IPC_RMID, (struct msqid_ds *)0);
     raise(SIGKILL);
 }
