@@ -3,19 +3,6 @@
 #define msgq_key 65
 
 int msgq_id;
-typedef struct
-{
-    int id;
-    int priority;
-    int arrival_time;
-    int running_time;
-} Process;
-
-typedef struct
-{
-    long mtype;
-    Process proc;
-} Msgbuff;
 
 void clearResources(int);
 
@@ -162,8 +149,8 @@ int main(int argc, char *argv[])
     // --> already done in the beginning of the main function
 
     // 6. Send the information to the scheduler at the appropriate time.
-    int index = 1;
-    while (index <= processes_count)
+    int index = 0;
+    while (index < processes_count)
     {
         if (processes[index].arrival_time == getClk())
         {
@@ -192,6 +179,7 @@ void clearResources(int signum)
 {
     // TODO Clears all resources in case of interruption
     printf("Clearing due to interruption\n");
+    destroyClk(true);
     msgctl(msgq_id, IPC_RMID, (struct msqid_ds *)0);
     raise(SIGKILL);
 }

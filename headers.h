@@ -74,13 +74,14 @@ struct PCB
     int brust;
     int finish;
     int running;
+    int remaningTime;
     int stop;
     int priority;
     int start;
     int wait;
 };
 
-void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nFinish, int nRunning, int nStop, int nPriority, int nStart, int nWait)
+void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nFinish, int nRunning, int nStop, int nPriority, int nStart, int nWait, int nRemaningTime)
 {
     pcb->id = nID;
     pcb->pid = nPID;
@@ -89,12 +90,25 @@ void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nF
     pcb->finish = nFinish;
     pcb->running = nRunning;
     pcb->stop = nStop;
+    pcb->remaningTime = nRemaningTime;
     pcb->priority = nPriority;
     pcb->start = nStart;
     pcb->wait = nWait;
 }
-//-----------------------------------------------------------------------------------------
+//-------------------------Process and Process messages structs  ----------------------------------------------------------------
+typedef struct
+{
+    int id;
+    int priority;
+    int arrival_time;
+    int running_time;
+} Process;
 
+typedef struct
+{
+    long mtype;
+    Process proc;
+} Msgbuff;
 // ---------------------------Queue implementation for RR => src "Geeks for Geeks" --------------------------------
 struct Queue
 {
