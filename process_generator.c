@@ -1,5 +1,6 @@
 #include "headers.h"
 #include <stdio.h>
+#define msgq_key 65
 
 int msgq_id;
 typedef struct
@@ -24,8 +25,12 @@ int main(int argc, char *argv[])
 
     // Create and initialize the message queue
     key_t key_id;
-    FILE *key = fopen("keyfile", "r");
-    key_id = ftok("keyfile", 65);
+    key_id = ftok("msgQueueFileKey", msgq_key);
+    if (key_id == -1)
+    {
+        perror("Error in creating the key\n");
+        exit(-1);
+    }
     int send_val;
     msgq_id = msgget(key_id, 0666 | IPC_CREAT);
     if (msgq_id == -1)

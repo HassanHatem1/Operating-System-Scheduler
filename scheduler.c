@@ -1,5 +1,5 @@
 #include "headers.h"
-
+#define msgq_key 65
 void HPF();  // highest priority first
 void SRTN(); // shortest remaining time next
 void RR();   // Round Robin
