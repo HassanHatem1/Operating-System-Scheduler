@@ -237,6 +237,12 @@ void push(Node **head, struct PCB *d, int p)
 {
     Node *start = (*head);
 
+    if (start == NULL)
+    {
+        (*head) = newNode(d, p);
+        return;
+    }
+
     // Create new Node
     Node *temp = newNode(d, p);
 
