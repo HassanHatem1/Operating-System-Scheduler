@@ -110,18 +110,30 @@ int main(int argc, char *argv[])
 
         // here the NULL in the execl function serves as a sentinel value to indicate the end of the argument list.
         if (algorithm_num != 3)
-            execl("./scheduler.out", process_count_str, algorithm_num_str, NULL);
+        {
+            int success = execl("./scheduler.out", process_count_str, algorithm_num_str, NULL);
+            if (success == -1)
+            {
+                printf("Error in executing scheduler.out with !RR\n");
+                exit(-1);
+            }
+        }
         else
         {
             sprintf(quantum_str, "%d", quantum);
-            execl("./scheduler.out", process_count_str, algorithm_num_str, quantum_str, NULL);
+            int succes=execl("./scheduler.out", process_count_str, algorithm_num_str, quantum_str, NULL);
+            if (succes == -1)
+            {
+                printf("Error in executing scheduler.out with RR\n");
+                exit(-1);
+            }
         }
         exit(0);
     }
 
     // Create the clock process
     pid_t clock_pid = fork();
-    if (scheduler_pid == -1)
+    if (clock_pid == -1)
     {
         perror("Error in creating scheduler process\n");
         exit(-1);
@@ -154,8 +166,7 @@ int main(int argc, char *argv[])
     {
         if (processes[index].arrival_time == getClk())
         {
-            // send_val = msgsnd(msgq_id, &processes[current], sizeof(struct processData), !IPC_NOWAIT);
-            // current++;
+
             // Create a message and send it to the queue
             Msgbuff message;
             message.mtype = 1; // mtype is for the scheduler to know that this is a process

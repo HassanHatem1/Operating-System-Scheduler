@@ -22,16 +22,33 @@ int main(int agrc, char *argv[])
         exit(-1);
     }
 
+    // int prevClk = getClk();
+    // remainingtime = sharedMem[id];
+    // while (remainingtime > 0) ////////////work to do here
+    // {
+    //     if (prevClk < getClk())
+    //     {
+    //         printf( "process with id:%d had prevclk:%d and getclk:%d and remainingtime:%d\n",id,prevClk,getClk(),remainingtime);
+    //         sharedMem[id] = sharedMem[id] - 1;
+    //         remainingtime = remainingtime - 1; // no need for this variable
+    //     }
+    //     prevClk = getClk();
+    // }
+
     int prevClk = getClk();
     remainingtime = sharedMem[id];
-    while (remainingtime > 0) ////////////work to do here
+    printf("remtime: %d\n", sharedMem[1]);
+    while (remainingtime > 0)
     {
-        if (prevClk != getClk())
+        int currentClk = getClk();
+        if (prevClk < currentClk)
         {
-            sharedMem[id] = sharedMem[id] - 1;
-            remainingtime = remainingtime - 1; // no need for this variable
+            int timeElapsed = currentClk - prevClk;
+            printf("process with id:%d had prevclk:%d and getclk:%d and remainingtime:%d\n", id, prevClk, currentClk, remainingtime);
+            sharedMem[id] -= timeElapsed;
+            remainingtime -= timeElapsed;
         }
-        prevClk = getClk();
+        prevClk = currentClk;
     }
 
     destroyClk(false);
