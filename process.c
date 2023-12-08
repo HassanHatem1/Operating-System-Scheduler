@@ -52,11 +52,12 @@ int main(int agrc, char *argv[])
         // prevClk = currentClk;
 
         int currentClk = getClk();
-
-        while ((getClk() - currentClk) != 1)
+        while ((getClk() == currentClk))
         {
             // one cycle
         }
+        // STOP HERE
+        //
         remainingtime--;
         sharedMem[id] = remainingtime;
         printf("process with id:%d  getclk:%d and remainingtime:%d\n", id, getClk(), remainingtime);

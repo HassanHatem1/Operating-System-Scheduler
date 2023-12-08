@@ -299,13 +299,6 @@ void RR() // round robin
     int finishedprocess = 0, startTime = 0, isRunningProcess = 0;
     while (finishedprocess < process_count)
     {
-        Msgbuff msg = receiveProcess();
-        if (msg.mtype != -1)
-        {
-            struct PCB *processPCB = createPCB(msg.proc);
-            printf("process %d pushed in the queue\n", processPCB->id);
-            enqueue(readyQueue, processPCB);
-        }
         if (!isEmpty(readyQueue) && !isRunningProcess)
         {
             CurrentRunningProcess = dequeue(readyQueue);
@@ -362,9 +355,29 @@ void RR() // round robin
             {
                 stopProcess(CurrentRunningProcess);
                 struct PCB *temp = CurrentRunningProcess;
+                // check if another process arrived at the same time and push it in the queue
+                Msgbuff msg2;
+                do
+                {
+                    msg2 = receiveProcess();
+                    if (msg2.mtype != -1)
+                    {
+                        struct PCB *processPCB = createPCB(msg2.proc);
+                        printf("process %d pushed in the queue\n", processPCB->id);
+                        enqueue(readyQueue, processPCB);
+                    }
+                } while (msg2.mtype != -1);
+
                 enqueue(readyQueue, temp);
                 CurrentRunningProcess = NULL;
             }
+        }
+        Msgbuff msg = receiveProcess();
+        if (msg.mtype != -1)
+        {
+            struct PCB *processPCB = createPCB(msg.proc);
+            printf("process %d pushed in the queue\n", processPCB->id);
+            enqueue(readyQueue, processPCB);
         }
     }
 }
