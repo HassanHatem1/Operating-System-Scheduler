@@ -170,6 +170,7 @@ void HPF()
 
     while (finishedprocess < process_count)
     {
+
         Msgbuff msg = receiveProcess();
         if (msg.mtype != -1)
         {
@@ -217,10 +218,25 @@ void HPF()
 }
 void RR() // round robin
 {
-    printf("round Robin Starts\n");
+    printf("Round Robin Starts\n");
     printf("Quantum time = %d\n", quantum_time);
+
     struct Queue *readyQueue = createQueue(process_count);
-    process_count = 0;
+    int *remaningTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
+    struct PCB *CurrentRunningProcess = NULL;
+    int finishedprocess = 0;
+
+    while (finishedprocess < process_count)
+    {
+        Msgbuff msg = receiveProcess();
+        if (msg.mtype != -1)
+        {
+            struct PCB *processPCB = createPCB(msg.proc);
+            printf("process %d pushed in the queue\n", processPCB->id);
+            enqueue(readyQueue, processPCB);
+        }
+        // if (!isEmpty(readyQueue))
+    }
 }
 void SRTN()
 {
