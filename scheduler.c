@@ -1,13 +1,15 @@
 #include "headers.h"
 #define msgq_key 65     // msgqueue for scheduler and process generator
 #define sharedMemKey 44 // shared memory for remaining time of each process process
+// #define arrivals_shm_key 88 // shared memory for storing number of arrivals at every arrival time
 
 void HPF();  // highest priority first
 void SRTN(); // shortest remaining time next
 void RR();   // Round Robin
 void clearResources(int signum);
 
-int process_count, quantum_time, msgq_id, sharedMemory_id;
+int process_count, quantum_time, msgq_id, sharedMemory_id, arrivals_shm_id;
+int *remaningTime;
 int *weighted_TAs;
 int *waiting_times;
 
@@ -38,22 +40,16 @@ Msgbuff receiveProcess()
         // printf("fuck it \n");
         return msg;
     }
-    int *remaningTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
-    printf("process %d recieved\n", msg.proc.id);
-    if (remaningTime == (void *)-1)
-    {
-        printf("Error attaching shared memory segment\n");
-        raise(SIGINT);
-    }
     remaningTime[msg.proc.id] = msg.proc.running_time;
     return msg;
 }
 void intializeSharedMemory()
 {
-    key_t key = ftok("SharedMemoryKeyFile", sharedMemKey); // for shared memory
+    // shared memory for storing remaining time between process and scheduler
+    key_t key = ftok("SharedMemoryKeyFile", sharedMemKey);
     if (key == -1)
     {
-        perror("Error in creating the key of Shared memory in  scheduler\n");
+        perror("Error in creating the key of Shared memory in scheduler\n");
         exit(-1);
     }
     sharedMemory_id = shmget(key, (process_count + 1) * sizeof(int), IPC_CREAT | 0666); // +1 working with 1-based indexing not 0-based indexing
@@ -62,6 +58,26 @@ void intializeSharedMemory()
         perror("Error in creating the ID of shared memory in scheduler\n");
         exit(-1);
     }
+
+    // shared memory for storing number of arrivals at every arrival time between process generator and scheduler
+    // key_t key2 = ftok("SharedMemoryKeyFile", arrivals_shm_key);
+    // if (key == -1)
+    // {
+    //     perror("Error in creating the key of Shared memory\n");
+    //     exit(-1);
+    // }
+    // arrivals_shm_id = shmget(key2, 1000 * sizeof(int), IPC_CREAT | 0666);
+    // if (arrivals_shm_id == -1)
+    // {
+    //     perror("Error in creating the ID of shared memory\n");
+    //     exit(-1);
+    // }
+    // int *arrivals = (int *)shmat(arrivals_shm_id, (void *)0, 0);
+    // if (arrivals == (void *)-1)
+    // {
+    //     printf("Error attaching shared memory segment\n");
+    //     exit(-1);
+    // }
 
     printf("shared memory created successfully in scheduler with ID : %d \n", sharedMemory_id);
 }
@@ -165,20 +181,32 @@ void HPF()
     printf("HPF Starts\n");
     // priority Queue ;
     Node *PriorityQueue = NULL; // head
-    int *remaningTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
+    remaningTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
+    if (remaningTime == (void *)-1)
+    {
+        printf("Error attaching shared memory segment\n");
+        exit(-1);
+    }
     struct PCB *Frontprocess = NULL;
 
     while (finishedprocess < process_count)
     {
-        Msgbuff msg = receiveProcess();
-        if (msg.mtype != -1)
+        Msgbuff msg;
+        // here we fill the queue with the processes that arrived at a single arrival time
+        // this ensure that if many processes arrived at the same time, the one with the highest priority will be executed first
+        do
         {
-            printf("entered\n");
-            struct PCB *processPCB = createPCB(msg.proc);
-            // printf("process %d pushed in the queue\n", processPCB->id);
-            push(&PriorityQueue, processPCB, processPCB->priority);
-            printf("process %d pushed in the queue\n", processPCB->id);
-        }
+            msg = receiveProcess();
+            if (msg.mtype != -1)
+            {
+                printf("entered\n");
+                struct PCB *processPCB = createPCB(msg.proc);
+                // printf("process %d pushed in the queue\n", processPCB->id);
+                push(&PriorityQueue, processPCB, processPCB->priority);
+                printf("process %d pushed in the queue\n", processPCB->id);
+            }
+        } while (msg.mtype != -1);
+
         if (!isEmptyPQ(&PriorityQueue) && (Frontprocess == NULL))
         {
             Frontprocess = peek(&PriorityQueue);
@@ -232,6 +260,7 @@ void clearResources(int signum)
     printf("Clearing due to interruption\n");
     destroyClk(true);
     msgctl(msgq_id, IPC_RMID, (struct msqid_ds *)0);
-    int result = shmctl(sharedMemory_id, IPC_RMID, NULL);
+    shmctl(sharedMemory_id, IPC_RMID, NULL);
+    shmctl(arrivals_shm_id, IPC_RMID, NULL);
     raise(SIGKILL);
 }

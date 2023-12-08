@@ -1,7 +1,7 @@
 #include "headers.h"
 #include <stdio.h>
 #define msgq_key 65
-#define arrivals_shm_key 88
+// #define arrivals_shm_key 88
 
 int msgq_id;
 
@@ -28,26 +28,26 @@ int main(int argc, char *argv[])
     }
 
     // Create and initialize the shared memory for storing number of arrivals at every arrival time
-    key_t key = ftok("SharedMemoryKeyFile", arrivals_shm_key);
-    if (key == -1)
-    {
-        perror("Error in creating the key of Shared memory\n");
-        exit(-1);
-    }
-    int arrivals_shm_id = shmget(key, 1000 * sizeof(int), IPC_CREAT | 0666);
-    if (arrivals_shm_id == -1)
-    {
-        perror("Error in creating the ID of shared memory\n");
-        exit(-1);
-    }
-    int *arrivals = (int *)shmat(arrivals_shm_id, (void *)0, 0);
-    if (arrivals == (void *)-1)
-    {
-        printf("Error attaching shared memory segment\n");
-        exit(-1);
-    }
-    for (int i = 0; i < 1000; i++)
-        arrivals[i] = 0;
+    // key_t key = ftok("SharedMemoryKeyFile", arrivals_shm_key);
+    // if (key == -1)
+    // {
+    //     perror("Error in creating the key of Shared memory\n");
+    //     exit(-1);
+    // }
+    // int arrivals_shm_id = shmget(key, 1000 * sizeof(int), IPC_CREAT | 0666);
+    // if (arrivals_shm_id == -1)
+    // {
+    //     perror("Error in creating the ID of shared memory\n");
+    //     exit(-1);
+    // }
+    // int *arrivals = (int *)shmat(arrivals_shm_id, (void *)0, 0);
+    // if (arrivals == (void *)-1)
+    // {
+    //     printf("Error attaching shared memory segment\n");
+    //     exit(-1);
+    // }
+    // for (int i = 0; i < 1000; i++)
+    //     arrivals[i] = 0;
 
     // 1. Read the input files.
     FILE *file = fopen("processes.txt", "r");
@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
     for (int i = 0; i < processes_count; i++)
     { // here t%d will make fscanf ignore the space and read the number only
         fscanf(file, "%d\t%d\t%d\t%d", &processes[i].id, &processes[i].arrival_time, &processes[i].running_time, &processes[i].priority);
-        arrivals[processes[i].arrival_time]++;
+        // arrivals[processes[i].arrival_time]++;
         if (processes[i].arrival_time > 1000)
         {
             printf("Error! Arrival time of process %d is greater than 1000, arrival sahred mem is overloaded\n", processes[i].id);
