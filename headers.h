@@ -71,7 +71,7 @@ struct PCB
     int id;
     int pid;
     int arrival;
-    int brust;
+    int burst;
     int finish;
     int running;
     int remaningTime;
@@ -86,7 +86,7 @@ void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nF
     pcb->id = nID;
     pcb->pid = nPID;
     pcb->arrival = nArrival;
-    pcb->brust = nBurst;
+    pcb->burst = nBurst;
     pcb->finish = nFinish;
     pcb->running = nRunning;
     pcb->stop = nStop;
@@ -190,7 +190,7 @@ void QueuePrint(struct Queue *queue)
     int index = 1;
     for (int i = queue->front; i <= queue->rear; i++)
     {
-        printf("the node number %d which has id %d and burst time %d\n", index, queue->array[i]->id, queue->array[i]->brust);
+        printf("the node number %d which has id %d and burst time %d\n", index, queue->array[i]->id, queue->array[i]->burst);
         index++;
     }
 }
@@ -286,7 +286,7 @@ void PQueuePrint(Node **head)
     int index = 1;
     while (start)
     {
-        printf("the node number %d which has id %d and burst time %d\n  and priority %d \n", index, start->process->id, start->process->brust, start->priority);
+        printf("the node number %d which has id %d and burst time %d\n  and priority %d \n", index, start->process->id, start->process->burst, start->priority);
         index++;
         start = start->next;
     }

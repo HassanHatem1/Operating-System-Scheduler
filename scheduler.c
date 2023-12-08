@@ -9,6 +9,7 @@ void RR();   // Round Robin
 void clearResources(int signum);
 
 int process_count, quantum_time, msgq_id, sharedMemory_id, arrivals_shm_id;
+int algorithm_num;
 int *remaningTime;
 int *weighted_TAs;
 int *waiting_times;
@@ -22,11 +23,12 @@ struct PCB *createPCB(Process proc)
     struct PCB *pcb = (struct PCB *)malloc(sizeof(struct PCB));
     pcb->id = proc.id;
     pcb->arrival = proc.arrival_time;
-    pcb->brust = proc.running_time;
+    pcb->burst = proc.running_time;
     pcb->priority = proc.priority;
     pcb->remaningTime = proc.running_time; // burst - running time  ;
     pcb->running = 0;
     pcb->wait = 0;
+    pcb->stop = 0;
 
     return pcb;
 }
@@ -114,26 +116,65 @@ void startProcess(struct PCB *process)
 {
     int start_time = getClk();
     process->start = start_time;
-    process->wait = start_time - process->arrival;
+    process->wait = (start_time - process->arrival);
+    process->remaningTime = process->burst;
     fprintf(SchedulerLogFile, "At time %d process %d started arr %d total %d remain %d wait %d\n",
-            start_time, process->id, process->arrival, process->brust, process->brust, process->wait);
+            start_time, process->id, process->arrival, process->burst, process->burst, process->wait);
 }
 void finishProcess(struct PCB *process)
 {
     int finish_time = getClk();
     process->finish = finish_time;
     process->remaningTime = 0;
-    process->running = process->brust;
+    if (algorithm_num == 1)
+        process->running = process->burst;
+    if (algorithm_num == 3)
+        process->running += quantum_time;
+
     int TA = finish_time - process->arrival;
-    double WTA = (TA * 1.0000) / process->brust;
+    double WTA = (TA * 1.0000) / process->burst;
     // saving data for last statistics
     weighted_TAs[process->id] = WTA;
     waiting_times[process->id] = process->wait;
-
+    printf("process %d finished\n", process->id);
     fprintf(SchedulerLogFile, "At time %d process %d finished arr %d total %d remain %d wait %d TA %d WTA %.2f\n",
-            finish_time, process->id, process->arrival, process->brust, 0, process->wait, TA, WTA);
+            finish_time, process->id, process->arrival, process->burst, 0, process->wait, TA, WTA);
+}
+void continueProcess(struct PCB *process)
+{
+    int continue_time = getClk();
+    process->wait += (continue_time - process->stop);
+    int diff = process->burst - process->running;
+    process->remaningTime = (diff < 0) ? 0 : diff; // burst - running time  ;
+
+    fprintf(SchedulerLogFile, "At time %d process %d resumed arr %d total %d remain %d wait %d\n",
+            getClk(), process->id, process->arrival, process->burst, process->remaningTime, process->wait);
+
+    printf("process %d continued\n", process->id);
+
+    kill(process->pid, SIGCONT);
+}
+void stopProcess(struct PCB *process)
+{
+    int last_stop_time = getClk();
+    process->stop = last_stop_time;
+    process->running += quantum_time;
+
+    process->remaningTime = process->burst - process->running; // sharedmem[id]
+
+    fprintf(SchedulerLogFile, "At time %d process %d stopped arr %d total %d remain %d wait %d\n",
+            getClk(), process->id, process->arrival, process->burst, process->remaningTime, process->wait);
+
+    printf("process %d stopped\n", process->id);
+
+    kill(process->pid, SIGSTOP); // stop the process
 }
 
+void testkill(int signum)
+{
+    printf("process killed by something \n");
+    raise(SIGINT);
+}
 int main(int argc, char *argv[])
 {
     initClk();
@@ -141,9 +182,9 @@ int main(int argc, char *argv[])
     // argv[1] chosen algorithm ;
     // argv[2] quantum time if RR ;
     signal(SIGINT, clearResources);
-
+    signal(SIGSTOP, testkill); // to test kill
     process_count = atoi(argv[0]);
-    int algorithm_num = atoi(argv[1]);
+    algorithm_num = atoi(argv[1]);
     quantum_time = 0;
     if (algorithm_num == 3)
         quantum_time = atoi(argv[2]);
@@ -201,9 +242,8 @@ void HPF()
             {
                 printf("entered\n");
                 struct PCB *processPCB = createPCB(msg.proc);
-                // printf("process %d pushed in the queue\n", processPCB->id);
                 push(&PriorityQueue, processPCB, processPCB->priority);
-                printf("process %d pushed in the queue\n", processPCB->id);
+                printf("process %d pushed in the priority  queue\n", processPCB->id);
             }
         } while (msg.mtype != -1);
 
@@ -249,10 +289,14 @@ void RR() // round robin
     printf("Quantum time = %d\n", quantum_time);
 
     struct Queue *readyQueue = createQueue(process_count);
-    int *remaningTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
+    remaningTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
+    if (remaningTime == (void *)-1)
+    {
+        printf("Error attaching shared memory segment in RR\n");
+        exit(-1);
+    }
     struct PCB *CurrentRunningProcess = NULL;
-    int finishedprocess = 0;
-
+    int finishedprocess = 0, startTime = 0, isRunningProcess = 0;
     while (finishedprocess < process_count)
     {
         Msgbuff msg = receiveProcess();
@@ -262,7 +306,66 @@ void RR() // round robin
             printf("process %d pushed in the queue\n", processPCB->id);
             enqueue(readyQueue, processPCB);
         }
-        // if (!isEmpty(readyQueue))
+        if (!isEmpty(readyQueue) && !isRunningProcess)
+        {
+            CurrentRunningProcess = dequeue(readyQueue);
+            startTime = getClk();
+            isRunningProcess = 1;
+            if (CurrentRunningProcess->running == 0)
+            {
+
+                int PID = fork();
+                if (PID == -1)
+                {
+                    perror("Error in creating the process in scheduler HPF \n");
+                    exit(-1);
+                }
+                else if (PID == 0)
+                {
+                    char id_str[10];
+                    char count_str[10];
+
+                    sprintf(id_str, "%d", CurrentRunningProcess->id);
+                    sprintf(count_str, "%d", process_count);
+
+                    system("gcc -Wall -o process.out process.c -lm -fno-stack-protector");
+
+                    execl("./process.out", id_str, count_str, NULL);
+                }
+                else
+                {
+
+                    CurrentRunningProcess->pid = PID;
+                    startProcess(CurrentRunningProcess);
+                }
+            }
+            else
+            { // means that the process was stopped and now we need to continue it
+                continueProcess(CurrentRunningProcess);
+            }
+        }
+
+        if (isRunningProcess && ((getClk() - startTime) == quantum_time))
+        {
+            int remTime = remaningTime[CurrentRunningProcess->id];
+            isRunningProcess = 0;
+            startTime = 0;
+            printf("----------remTime: %d, -----id %d\n", remTime, CurrentRunningProcess->id);
+
+            if (remTime == 0)
+            {
+                finishedprocess++;
+                finishProcess(CurrentRunningProcess);
+                CurrentRunningProcess = NULL;
+            }
+            else
+            {
+                stopProcess(CurrentRunningProcess);
+                struct PCB *temp = CurrentRunningProcess;
+                enqueue(readyQueue, temp);
+                CurrentRunningProcess = NULL;
+            }
+        }
     }
 }
 void SRTN()
@@ -276,6 +379,6 @@ void clearResources(int signum)
     destroyClk(true);
     msgctl(msgq_id, IPC_RMID, (struct msqid_ds *)0);
     shmctl(sharedMemory_id, IPC_RMID, NULL);
-    shmctl(arrivals_shm_id, IPC_RMID, NULL);
+    // shmctl(arrivals_shm_id, IPC_RMID, NULL);
     raise(SIGKILL);
 }
