@@ -9,9 +9,9 @@ void SRTN(); // shortest remaining time next
 void RR();   // Round Robin
 void clearResources(int signum);
 
-int process_count, quantum_time, msgq_id, sharedMemory_id, process_schedulerSHMID, arrivals_shm_id;
+int process_count, quantum_time, msgq_id, sharedMemory_id, process_schedulerSHMID, arrivals_shm_id, finished_processes = 0;
 int algorithm_num;
-int *remaningTime;
+int *remainingTime;
 int *weighted_TAs;
 int *waiting_times;
 
@@ -26,10 +26,11 @@ struct PCB *createPCB(Process proc)
     pcb->arrival = proc.arrival_time;
     pcb->burst = proc.running_time;
     pcb->priority = proc.priority;
-    pcb->remaningTime = proc.running_time; // burst - running time  ;
+    pcb->remainingTime = proc.running_time; // burst - running time  ;
     pcb->running = 0;
     pcb->wait = 0;
     pcb->stop = 0;
+    pcb->stopped = false;
 
     return pcb;
 }
@@ -43,7 +44,7 @@ Msgbuff receiveProcess()
         // printf("fuck it \n");
         return msg;
     }
-    remaningTime[msg.proc.id] = msg.proc.running_time;
+    remainingTime[msg.proc.id] = msg.proc.running_time;
     return msg;
 }
 void intializeSharedMemory()
@@ -112,7 +113,7 @@ void startProcess(struct PCB *process)
     int start_time = getClk();
     process->start = start_time;
     process->wait = (start_time - process->arrival);
-    process->remaningTime = process->burst;
+    process->remainingTime = process->burst;
     fprintf(SchedulerLogFile, "At time %d process %d started arr %d total %d remain %d wait %d\n",
             start_time, process->id, process->arrival, process->burst, process->burst, process->wait);
 }
@@ -120,9 +121,14 @@ void finishProcess(struct PCB *process)
 {
     int finish_time = getClk();
     process->finish = finish_time;
-    process->remaningTime = 0;
+    process->remainingTime = 0;
+
     if (algorithm_num == 1)
         process->running = process->burst;
+
+    if (algorithm_num == 2)
+        process->running += (process->burst - process->remainingTime);
+
     if (algorithm_num == 3)
         process->running += quantum_time;
 
@@ -140,10 +146,10 @@ void continueProcess(struct PCB *process)
     int continue_time = getClk();
     process->wait += (continue_time - process->stop);
     int diff = process->burst - process->running;
-    process->remaningTime = (diff < 0) ? 0 : diff; // burst - running time  ;
+    process->remainingTime = (diff < 0) ? 0 : diff; // burst - running time  ;
 
     fprintf(SchedulerLogFile, "At time %d process %d resumed arr %d total %d remain %d wait %d\n",
-            getClk(), process->id, process->arrival, process->burst, process->remaningTime, process->wait);
+            getClk(), process->id, process->arrival, process->burst, process->remainingTime, process->wait);
 
     int *prev = (int *)shmat(process_schedulerSHMID, (void *)0, 0); //
     *prev = getClk();
@@ -156,12 +162,16 @@ void stopProcess(struct PCB *process)
 {
     int last_stop_time = getClk();
     process->stop = last_stop_time;
-    process->running += quantum_time;
 
-    process->remaningTime = process->burst - process->running; // sharedmem[id]
+    if (algorithm_num == 3)
+        process->running += quantum_time;
+    else
+        process->running += process->burst - remainingTime[process->id];
+
+    process->remainingTime = process->burst - process->running; // sharedmem[id]
 
     fprintf(SchedulerLogFile, "At time %d process %d stopped arr %d total %d remain %d wait %d\n",
-            getClk(), process->id, process->arrival, process->burst, process->remaningTime, process->wait);
+            getClk(), process->id, process->arrival, process->burst, process->remainingTime, process->wait);
 
     printf("process %d stopped\n", process->id);
 
@@ -199,7 +209,7 @@ int main(int argc, char *argv[])
 
     printf("Scheduler starts\n");
 
-    // TODO implement the scheduler :)
+    // TODO implement the scheduler
     if (algorithm_num == 1)
         HPF();
     else if (algorithm_num == 2)
@@ -210,26 +220,25 @@ int main(int argc, char *argv[])
     printf("end of scheduler : \n");
 
     fclose(SchedulerLogFile); // closeSchedularLogFile
-    shmdt(remaningTime);
+    shmdt(remainingTime);
     // upon termination release the clock resources.
 
     raise(SIGINT); // to clean all resources and end
 }
 void HPF()
 {
-    int finishedprocess = 0;
     printf("HPF Starts\n");
     // priority Queue ;
     Node *PriorityQueue = NULL; // head
-    remaningTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
-    if (remaningTime == (void *)-1)
+    remainingTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
+    if (remainingTime == (void *)-1)
     {
         printf("Error attaching shared memory segment\n");
         exit(-1);
     }
-    struct PCB *Frontprocess = NULL;
+    struct PCB *current_process = NULL;
 
-    while (finishedprocess < process_count)
+    while (finished_processes < process_count)
     {
         Msgbuff msg;
         // here we fill the queue with the processes that arrived at a single arrival time
@@ -246,11 +255,11 @@ void HPF()
             }
         } while (msg.mtype != -1);
 
-        if (!isEmptyPQ(&PriorityQueue) && (Frontprocess == NULL))
+        if (!isEmptyPQ(&PriorityQueue) && (current_process == NULL))
         {
-            Frontprocess = peek(&PriorityQueue);
+            current_process = peek(&PriorityQueue);
             pop(&PriorityQueue);
-            startProcess(Frontprocess);
+            startProcess(current_process);
             int PID = fork();
             if (PID == -1)
             {
@@ -262,7 +271,7 @@ void HPF()
                 char id_str[10];
                 char count_str[10];
 
-                sprintf(id_str, "%d", Frontprocess->id);
+                sprintf(id_str, "%d", current_process->id);
                 sprintf(count_str, "%d", process_count);
 
                 system("gcc -Wall -o process.out process.c -lm -fno-stack-protector");
@@ -271,14 +280,14 @@ void HPF()
             }
             else
             {
-                Frontprocess->pid = PID;
+                current_process->pid = PID;
             }
         }
-        if (Frontprocess != NULL && remaningTime[Frontprocess->id] == 0)
+        if (current_process != NULL && remainingTime[current_process->id] == 0)
         {
-            finishProcess(Frontprocess);
-            Frontprocess = NULL;
-            finishedprocess++;
+            finishProcess(current_process);
+            current_process = NULL;
+            finished_processes++;
         }
     }
 }
@@ -288,22 +297,22 @@ void RR() // round robin
     printf("Quantum time = %d\n", quantum_time);
 
     struct Queue *readyQueue = createQueue(process_count);
-    remaningTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
-    if (remaningTime == (void *)-1)
+    remainingTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
+    if (remainingTime == (void *)-1)
     {
         printf("Error attaching shared memory segment in RR\n");
         exit(-1);
     }
-    struct PCB *CurrentRunningProcess = NULL;
-    int finishedprocess = 0, startTime = 0, isRunningProcess = 0;
-    while (finishedprocess < process_count)
+    struct PCB *current_running_process = NULL;
+    int startTime = 0, isRunningProcess = 0;
+    while (finished_processes < process_count)
     {
         if (!isEmpty(readyQueue) && !isRunningProcess)
         {
-            CurrentRunningProcess = dequeue(readyQueue);
+            current_running_process = dequeue(readyQueue);
             startTime = getClk();
             isRunningProcess = 1;
-            if (CurrentRunningProcess->running == 0)
+            if (current_running_process->running == 0)
             {
 
                 int PID = fork();
@@ -317,7 +326,7 @@ void RR() // round robin
                     char id_str[10];
                     char count_str[10];
 
-                    sprintf(id_str, "%d", CurrentRunningProcess->id);
+                    sprintf(id_str, "%d", current_running_process->id);
                     sprintf(count_str, "%d", process_count);
 
                     // system("gcc -Wall -o process.out process.c -lm -fno-stack-protector");
@@ -327,32 +336,32 @@ void RR() // round robin
                 else
                 {
 
-                    CurrentRunningProcess->pid = PID;
-                    startProcess(CurrentRunningProcess);
+                    current_running_process->pid = PID;
+                    startProcess(current_running_process);
                 }
             }
             else
             { // means that the process was stopped and now we need to continue it
-                continueProcess(CurrentRunningProcess);
+                continueProcess(current_running_process);
             }
         }
 
-        if (isRunningProcess && (((getClk() - startTime) == quantum_time) || (remaningTime[CurrentRunningProcess->id] == 0)))
+        if (isRunningProcess && (((getClk() - startTime) == quantum_time) || (remainingTime[current_running_process->id] == 0)))
         {
             isRunningProcess = 0;
             startTime = 0;
-            printf("----------remTime: %d, -----id %d\n", remaningTime[CurrentRunningProcess->id], CurrentRunningProcess->id);
+            printf("----------remTime: %d, -----id %d\n", remainingTime[current_running_process->id], current_running_process->id);
 
-            if (remaningTime[CurrentRunningProcess->id] == 0)
+            if (remainingTime[current_running_process->id] == 0)
             {
-                finishedprocess++;
-                finishProcess(CurrentRunningProcess);
-                CurrentRunningProcess = NULL;
+                finished_processes++;
+                finishProcess(current_running_process);
+                current_running_process = NULL;
             }
             else
             {
-                stopProcess(CurrentRunningProcess);
-                struct PCB *temp = CurrentRunningProcess;
+                stopProcess(current_running_process);
+                struct PCB *temp = current_running_process;
                 // check if another process arrived at the same time and push it in the queue
                 Msgbuff msg2;
                 do
@@ -367,7 +376,7 @@ void RR() // round robin
                 } while (msg2.mtype != -1);
 
                 enqueue(readyQueue, temp);
-                CurrentRunningProcess = NULL;
+                current_running_process = NULL;
             }
         }
         Msgbuff msg = receiveProcess();
@@ -381,6 +390,87 @@ void RR() // round robin
 }
 void SRTN()
 {
+    printf("SRTN starts\n");
+    int PID = 1;
+    Msgbuff msg;
+    Node *PriorityQueue = NULL;
+    struct PCB *current_process = NULL;
+    remainingTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
+    if (remainingTime == (void *)-1)
+    {
+        printf("Error attaching shared memory segment\n");
+        exit(-1);
+    }
+
+    while (finished_processes < process_count)
+    {
+        do
+        {
+            msg = receiveProcess();
+            if (msg.mtype != -1)
+            {
+                struct PCB *processPCB = createPCB(msg.proc);
+                printf("process %d pushed in the queue at %d\n", processPCB->id, getClk());
+                push(&PriorityQueue, processPCB, processPCB->remainingTime);
+            }
+        } while (msg.mtype != -1);
+
+        if (!isEmptyPQ(&PriorityQueue) && current_process == NULL)
+        {
+            printf("entered 1st at: %d\n", getClk());
+
+            current_process = peek(&PriorityQueue);
+            pop(&PriorityQueue);
+
+            if (current_process->stopped)
+            {
+                continueProcess(current_process);
+            }
+            else
+            {
+                startProcess(current_process);
+                PID = fork();
+                if (PID == -1)
+                {
+                    perror("Error in creating the process in scheduler SRTN \n");
+                    exit(-1);
+                }
+                else if (PID == 0)
+                {
+                    char id_str[10];
+                    char count_str[10];
+
+                    sprintf(id_str, "%d", current_process->id);
+                    sprintf(count_str, "%d", process_count);
+
+                    system("gcc -Wall -o process.out process.c -lm -fno-stack-protector");
+
+                    execl("./process.out", id_str, count_str, NULL);
+                }
+                else
+                {
+                    current_process->pid = PID;
+                }
+            }
+        }
+
+
+        if (current_process != NULL && remainingTime[current_process->id] == 0 && PID != 0)
+        {
+            printf("entered 2nd at: %d\n", getClk());
+            finishProcess(current_process);
+            current_process = NULL;
+            finished_processes++;
+        }
+        else if (current_process != NULL && !isEmptyPQ(&PriorityQueue) && remainingTime[current_process->id] > peek(&PriorityQueue)->remainingTime && PID != 0)
+        {
+            printf("entered 3rd at: %d\n", getClk());
+            stopProcess(current_process);
+            current_process->stopped = true;
+            push(&PriorityQueue, current_process, remainingTime[current_process->id]);
+            current_process = NULL;
+        }
+    }
 }
 
 void clearResources(int signum)

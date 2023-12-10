@@ -74,14 +74,15 @@ struct PCB
     int burst;
     int finish;
     int running;
-    int remaningTime;
+    int remainingTime;
     int stop;
     int priority;
     int start;
     int wait;
+    bool stopped;
 };
 
-void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nFinish, int nRunning, int nStop, int nPriority, int nStart, int nWait, int nRemaningTime)
+void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nFinish, int nRunning, int nStop, int nPriority, int nStart, int nWait, int nremainingTime)
 {
     pcb->id = nID;
     pcb->pid = nPID;
@@ -90,7 +91,7 @@ void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nF
     pcb->finish = nFinish;
     pcb->running = nRunning;
     pcb->stop = nStop;
-    pcb->remaningTime = nRemaningTime;
+    pcb->remainingTime = nremainingTime;
     pcb->priority = nPriority;
     pcb->start = nStart;
     pcb->wait = nWait;
