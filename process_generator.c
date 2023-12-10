@@ -42,28 +42,6 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    // Create and initialize the shared memory for storing number of arrivals at every arrival time
-    // key_t key = ftok("SharedMemoryKeyFile", arrivals_shm_key);
-    // if (key == -1)
-    // {
-    //     perror("Error in creating the key of Shared memory\n");
-    //     exit(-1);
-    // }
-    // int arrivals_shm_id = shmget(key, 1000 * sizeof(int), IPC_CREAT | 0666);
-    // if (arrivals_shm_id == -1)
-    // {
-    //     perror("Error in creating the ID of shared memory\n");
-    //     exit(-1);
-    // }
-    // int *arrivals = (int *)shmat(arrivals_shm_id, (void *)0, 0);
-    // if (arrivals == (void *)-1)
-    // {
-    //     printf("Error attaching shared memory segment\n");
-    //     exit(-1);
-    // }
-    // for (int i = 0; i < 1000; i++)
-    //     arrivals[i] = 0;
-
     // 1. Read the input files.
     FILE *file = fopen("processes.txt", "r");
 

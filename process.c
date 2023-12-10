@@ -27,38 +27,14 @@ int main(int agrc, char *argv[])
 
     initClk();
 
-    // int prevClk = getClk();
-    // remainingtime = sharedMem[id];
-    // while (remainingtime > 0) ////////////work to do here
-    // {
-    //     if (prevClk < getClk())
-    //     {
-    //         printf( "process with id:%d had prevclk:%d and getclk:%d and remainingtime:%d\n",id,prevClk,getClk(),remainingtime);
-    //         sharedMem[id] = sharedMem[id] - 1;
-    //         remainingtime = remainingtime - 1; // no need for this variable
-    //     }
-    //     prevClk = getClk();
-    // }
 
-    // int prevClk = getClk();
     remainingtime = sharedMem[id];
     printf("remtime of process %d : %d\n", id, sharedMem[id]);
-    int *prev = (int *)shmat(shmid, (void *)0, 0); // shared memory for remaining time of the process
+    int *prev = (int *)shmat(prevclkid, (void *)0, 0); // shared memory for remaining time of the process
     (*prev) = getClk();
-
-    // int currentClk = getClk();
 
     while (sharedMem[id] > 0)
     {
-        // int currentClk = getClk();
-        // if (prevClk < currentClk)
-        // {
-        //     int timeElapsed = currentClk - prevClk;
-        //     sharedMem[id] -= timeElapsed;
-        //     remainingtime -= timeElapsed;
-        //     printf("process with id:%d had prevclk:%d and getclk:%d and remainingtime:%d\n", id, prevClk, currentClk, remainingtime);
-        // }
-        // prevClk = currentClk;
 
         while (getClk() == (*prev))
         {

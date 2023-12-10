@@ -62,38 +62,18 @@ void intializeSharedMemory()
         exit(-1);
     }
 
-    key_t key2 = ftok("process_schedulerSHM", sharedMemKey);
+    key_t key2 = ftok("process_schedulerSHM", process_schedulerSHMKey);
     if (key2 == -1)
     {
         perror("Error in creating the key of Shared memory in scheduler\n");
         exit(-1);
     }
-    process_schedulerSHMID = shmget(key2, 1 * sizeof(int), IPC_CREAT | 0666); // +1 working with 1-based indexing not 0-based indexing
-    if (sharedMemory_id == -1)
+    process_schedulerSHMID = shmget(key2, 1 * sizeof(int), IPC_CREAT | 0666);
+    if (process_schedulerSHMID == -1)
     {
         perror("Error in creating the ID of between  process and scheduler \n");
         exit(-1);
     }
-
-    // shared memory for storing number of arrivals at every arrival time between process generator and scheduler
-    // key_t key2 = ftok("SharedMemoryKeyFile", arrivals_shm_key);
-    // if (key == -1)
-    // {
-    //     perror("Error in creating the key of Shared memory\n");
-    //     exit(-1);
-    // }
-    // arrivals_shm_id = shmget(key2, 1000 * sizeof(int), IPC_CREAT | 0666);
-    // if (arrivals_shm_id == -1)
-    // {
-    //     perror("Error in creating the ID of shared memory\n");
-    //     exit(-1);
-    // }
-    // int *arrivals = (int *)shmat(arrivals_shm_id, (void *)0, 0);
-    // if (arrivals == (void *)-1)
-    // {
-    //     printf("Error attaching shared memory segment\n");
-    //     exit(-1);
-    // }
 
     printf("shared memory created successfully in scheduler with ID : %d \n", sharedMemory_id);
     printf("shared memory (for prevClk trial ) created successfully in scheduler with ID : %d \n", process_schedulerSHMID);
@@ -357,7 +337,7 @@ void RR() // round robin
             }
         }
 
-        if (isRunningProcess && ( ((getClk() - startTime) == quantum_time) || (remaningTime[CurrentRunningProcess->id] == 0)))
+        if (isRunningProcess && (((getClk() - startTime) == quantum_time) || (remaningTime[CurrentRunningProcess->id] == 0)))
         {
             isRunningProcess = 0;
             startTime = 0;
@@ -410,6 +390,6 @@ void clearResources(int signum)
     destroyClk(true);
     msgctl(msgq_id, IPC_RMID, (struct msqid_ds *)0);
     shmctl(sharedMemory_id, IPC_RMID, NULL);
-    // shmctl(arrivals_shm_id, IPC_RMID, NULL);
+    shmctl(process_schedulerSHMID, IPC_RMID, NULL);
     raise(SIGKILL);
 }
