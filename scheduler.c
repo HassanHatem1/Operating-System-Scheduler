@@ -329,7 +329,7 @@ void RR() // round robin
                 int PID = fork();
                 if (PID == -1)
                 {
-                    perror("Error in creating the process in scheduler HPF \n");
+                    perror("Error in creating the process in scheduler RR \n");
                     exit(-1);
                 }
                 else if (PID == 0)
@@ -357,7 +357,7 @@ void RR() // round robin
             }
         }
 
-        if (isRunningProcess && ((getClk() - startTime) == quantum_time))
+        if (isRunningProcess && ( ((getClk() - startTime) == quantum_time) || (remaningTime[CurrentRunningProcess->id] == 0)))
         {
             isRunningProcess = 0;
             startTime = 0;
