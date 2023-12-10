@@ -1,6 +1,7 @@
 #include "headers.h"
 #define msgq_key 65     // msgqueue for scheduler and process generator
 #define sharedMemKey 44 // shared memory for remaining time of each process process
+#define process_schedulerSHMKey 55
 // #define arrivals_shm_key 88 // shared memory for storing number of arrivals at every arrival time
 
 void HPF();  // highest priority first
@@ -8,7 +9,7 @@ void SRTN(); // shortest remaining time next
 void RR();   // Round Robin
 void clearResources(int signum);
 
-int process_count, quantum_time, msgq_id, sharedMemory_id, arrivals_shm_id;
+int process_count, quantum_time, msgq_id, sharedMemory_id, process_schedulerSHMID, arrivals_shm_id;
 int algorithm_num;
 int *remaningTime;
 int *weighted_TAs;
@@ -61,6 +62,19 @@ void intializeSharedMemory()
         exit(-1);
     }
 
+    key_t key2 = ftok("process_schedulerSHM", sharedMemKey);
+    if (key2 == -1)
+    {
+        perror("Error in creating the key of Shared memory in scheduler\n");
+        exit(-1);
+    }
+    process_schedulerSHMID = shmget(key2, 1 * sizeof(int), IPC_CREAT | 0666); // +1 working with 1-based indexing not 0-based indexing
+    if (sharedMemory_id == -1)
+    {
+        perror("Error in creating the ID of between  process and scheduler \n");
+        exit(-1);
+    }
+
     // shared memory for storing number of arrivals at every arrival time between process generator and scheduler
     // key_t key2 = ftok("SharedMemoryKeyFile", arrivals_shm_key);
     // if (key == -1)
@@ -82,6 +96,7 @@ void intializeSharedMemory()
     // }
 
     printf("shared memory created successfully in scheduler with ID : %d \n", sharedMemory_id);
+    printf("shared memory (for prevClk trial ) created successfully in scheduler with ID : %d \n", process_schedulerSHMID);
 }
 void intializeMessageQueue()
 {
@@ -150,6 +165,9 @@ void continueProcess(struct PCB *process)
     fprintf(SchedulerLogFile, "At time %d process %d resumed arr %d total %d remain %d wait %d\n",
             getClk(), process->id, process->arrival, process->burst, process->remaningTime, process->wait);
 
+    int *prev = (int *)shmat(process_schedulerSHMID, (void *)0, 0); //
+    *prev = getClk();
+    shmdt(prev);
     printf("process %d continued\n", process->id);
 
     kill(process->pid, SIGCONT);
@@ -212,6 +230,7 @@ int main(int argc, char *argv[])
     printf("end of scheduler : \n");
 
     fclose(SchedulerLogFile); // closeSchedularLogFile
+    shmdt(remaningTime);
     // upon termination release the clock resources.
 
     raise(SIGINT); // to clean all resources and end
@@ -321,7 +340,7 @@ void RR() // round robin
                     sprintf(id_str, "%d", CurrentRunningProcess->id);
                     sprintf(count_str, "%d", process_count);
 
-                    system("gcc -Wall -o process.out process.c -lm -fno-stack-protector");
+                    // system("gcc -Wall -o process.out process.c -lm -fno-stack-protector");
 
                     execl("./process.out", id_str, count_str, NULL);
                 }
@@ -340,12 +359,11 @@ void RR() // round robin
 
         if (isRunningProcess && ((getClk() - startTime) == quantum_time))
         {
-            int remTime = remaningTime[CurrentRunningProcess->id];
             isRunningProcess = 0;
             startTime = 0;
-            printf("----------remTime: %d, -----id %d\n", remTime, CurrentRunningProcess->id);
+            printf("----------remTime: %d, -----id %d\n", remaningTime[CurrentRunningProcess->id], CurrentRunningProcess->id);
 
-            if (remTime == 0)
+            if (remaningTime[CurrentRunningProcess->id] == 0)
             {
                 finishedprocess++;
                 finishProcess(CurrentRunningProcess);
@@ -363,7 +381,7 @@ void RR() // round robin
                     if (msg2.mtype != -1)
                     {
                         struct PCB *processPCB = createPCB(msg2.proc);
-                        printf("process %d pushed in the queue\n", processPCB->id);
+                        printf("process %d pushed in the queue at time %d\n", processPCB->id, getClk());
                         enqueue(readyQueue, processPCB);
                     }
                 } while (msg2.mtype != -1);
@@ -376,7 +394,7 @@ void RR() // round robin
         if (msg.mtype != -1)
         {
             struct PCB *processPCB = createPCB(msg.proc);
-            printf("process %d pushed in the queue\n", processPCB->id);
+            printf("process %d pushed in the queue at time %d\n", processPCB->id, getClk());
             enqueue(readyQueue, processPCB);
         }
     }

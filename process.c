@@ -1,10 +1,11 @@
 #include "headers.h"
 #define sharedMemKey 44
+#define process_schedulerSHMKey 55
+
 /* Modify this file as needed*/
 int remainingtime;
 int main(int agrc, char *argv[])
 {
-    initClk();
     key_t key = ftok("SharedMemoryKeyFile", sharedMemKey); // for shared memory
 
     int id = atoi(argv[0]); // id of process (to send it in the notification to the scheduler)
@@ -21,6 +22,10 @@ int main(int agrc, char *argv[])
         perror("Error in attach \n");
         exit(-1);
     }
+    key_t key2 = ftok("process_schedulerSHM", process_schedulerSHMKey); // for shared memory
+    int prevclkid = shmget(key2, 1 * sizeof(int), IPC_CREAT | 0666);
+
+    initClk();
 
     // int prevClk = getClk();
     // remainingtime = sharedMem[id];
@@ -38,8 +43,12 @@ int main(int agrc, char *argv[])
     // int prevClk = getClk();
     remainingtime = sharedMem[id];
     printf("remtime of process %d : %d\n", id, sharedMem[id]);
+    int *prev = (int *)shmat(shmid, (void *)0, 0); // shared memory for remaining time of the process
+    (*prev) = getClk();
 
-    while (remainingtime > 0)
+    // int currentClk = getClk();
+
+    while (sharedMem[id] > 0)
     {
         // int currentClk = getClk();
         // if (prevClk < currentClk)
@@ -51,17 +60,20 @@ int main(int agrc, char *argv[])
         // }
         // prevClk = currentClk;
 
-        int currentClk = getClk();
-        while ((getClk() == currentClk))
+        while (getClk() == (*prev))
         {
             // one cycle
         }
-        // STOP HERE
-        //
-        remainingtime--;
-        sharedMem[id] = remainingtime;
-        printf("process with id:%d  getclk:%d and remainingtime:%d\n", id, getClk(), remainingtime);
+        while (getClk() == (*prev))
+        {
+        }
+
+        *prev = getClk();
+        sharedMem[id]--;
+        printf("process with id:%d  getclk:%d and remainingtime:%d\n", id, getClk(), sharedMem[id]);
     }
+    shmdt(sharedMem);
+    shmdt(prev);
 
     destroyClk(false);
     return 0;

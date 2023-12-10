@@ -1,3 +1,5 @@
 *.out
 testQ.c
 .idea/*
+core 
+core.*

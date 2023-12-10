@@ -7,6 +7,21 @@ int msgq_id;
 
 void clearResources(int);
 
+// sort the received processs according arrival time to send them in order ;
+
+// Comparator function
+int comp(const void *a, const void *b)
+{ // compare to sort struct process;
+    Process *p1 = (Process *)a;
+    Process *p2 = (Process *)b;
+    if (p1->arrival_time > p2->arrival_time)
+        return 1;
+    else if (p1->arrival_time < p2->arrival_time)
+        return -1;
+    else
+        return 0;
+}
+
 int main(int argc, char *argv[])
 {
     signal(SIGINT, clearResources);
@@ -128,7 +143,7 @@ int main(int argc, char *argv[])
     {
         // compile the C program named scheduler.c using the gcc compiler with certain flags ().
         // The compiled output is named scheduler.out.
-        system("gcc -Wall -o scheduler.out scheduler.c -lm -fno-stack-protector");
+        // system("gcc -Wall -o scheduler.out scheduler.c -lm -fno-stack-protector");
         printf("Scheduling..\n");
 
         // execute the scheduler.out file with the arguments of the number of processes and the algorithm number (and the quantum if it's RR)
@@ -190,6 +205,8 @@ int main(int argc, char *argv[])
     // --> already done in the beginning of the main function
 
     // 6. Send the information to the scheduler at the appropriate time.
+    qsort(processes, processes_count, sizeof(Process), comp); // sort the processes according to arrival time
+
     int index = 0;
     while (index < processes_count)
     {
@@ -207,10 +224,12 @@ int main(int argc, char *argv[])
                 perror("Error in sending the message\n");
                 exit(-1);
             }
+            printf("Process %d sent to the scheduler at time %d  and indx %d \n", processes[index].id, getClk(), index);
             index++;
         }
     }
 
+    waitpid(scheduler_pid, NULL, 0); // wait for the scheduler to finish
     // 7. Clear clock resources
     // destroyClk(true);
 }
@@ -221,5 +240,6 @@ void clearResources(int signum)
     printf("Clearing due to interruption\n");
     destroyClk(true);
     msgctl(msgq_id, IPC_RMID, (struct msqid_ds *)0);
+    exit(0);
     raise(SIGKILL);
 }
