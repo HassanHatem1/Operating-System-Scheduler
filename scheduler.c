@@ -9,7 +9,8 @@ void SRTN(); // shortest remaining time next
 void RR();   // Round Robin
 void clearResources(int signum);
 
-int process_count, quantum_time, msgq_id, sharedMemory_id, process_schedulerSHMID, arrivals_shm_id, finished_processes = 0;
+int process_count, quantum_time, msgq_id, sharedMemory_id, process_schedulerSHMID, arrivals_shm_id, finished_processes, totalwaiting = 0;
+double TWTA = 0;
 int algorithm_num;
 int *remainingTime;
 int *weighted_TAs;
@@ -18,6 +19,7 @@ int *waiting_times;
 // msgq_id --> msgqueue between scheduler and process generator
 
 FILE *SchedulerLogFile;
+FILE *SchedulerPerfFile;
 
 struct PCB *createPCB(Process proc)
 {
@@ -34,6 +36,7 @@ struct PCB *createPCB(Process proc)
 
     return pcb;
 }
+
 Msgbuff receiveProcess()
 {
     Msgbuff msg;
@@ -47,6 +50,7 @@ Msgbuff receiveProcess()
     remainingTime[msg.proc.id] = msg.proc.running_time;
     return msg;
 }
+
 void intializeSharedMemory()
 {
     // shared memory for storing remaining time between process and scheduler
@@ -79,6 +83,7 @@ void intializeSharedMemory()
     printf("shared memory created successfully in scheduler with ID : %d \n", sharedMemory_id);
     printf("shared memory (for prevClk trial ) created successfully in scheduler with ID : %d \n", process_schedulerSHMID);
 }
+
 void intializeMessageQueue()
 {
     key_t key_id;
@@ -105,6 +110,30 @@ void OpenSchedulerLogFile()
     {
         printf("Error opening SchedularLog  file.\n");
         return;
+    }
+}
+
+void OpenSchedulerPerfFile()
+{
+    SchedulerPerfFile = fopen("SchedulerPerf", "w"); // Open the file in write mode
+
+    if (SchedulerPerfFile == NULL)
+    {
+        printf("Error opening SchedularPerf  file.\n");
+        return;
+    }
+    else
+    {
+        double AWTA = TWTA / process_count;
+        double AWT = totalwaiting / process_count;
+        double sum = 0;
+        for (int i = 1; i <= process_count; i++)
+        {
+            sum += pow( (double) (weighted_TAs[i] - AWTA), (double) 2);
+        }
+        double STD = pow((sum / process_count), 0.5);
+        fprintf(SchedulerPerfFile, "CPU Utilization = %d%% \n Avg. WTA = %.2f \n Avg. Waiting = %.2f \n Std. WTA = %.2f",
+                100, AWTA, AWT, STD);
     }
 }
 
@@ -137,10 +166,14 @@ void finishProcess(struct PCB *process)
     // saving data for last statistics
     weighted_TAs[process->id] = WTA;
     waiting_times[process->id] = process->wait;
+    TWTA += WTA;
+    totalwaiting += process->wait;
+
     printf("process %d finished\n", process->id);
     fprintf(SchedulerLogFile, "At time %d process %d finished arr %d total %d remain %d wait %d TA %d WTA %.2f\n",
             finish_time, process->id, process->arrival, process->burst, 0, process->wait, TA, WTA);
 }
+
 void continueProcess(struct PCB *process)
 {
     int continue_time = getClk();
@@ -158,6 +191,7 @@ void continueProcess(struct PCB *process)
 
     kill(process->pid, SIGCONT);
 }
+
 void stopProcess(struct PCB *process)
 {
     int last_stop_time = getClk();
@@ -220,6 +254,9 @@ int main(int argc, char *argv[])
     printf("end of scheduler : \n");
 
     fclose(SchedulerLogFile); // closeSchedularLogFile
+    OpenSchedulerPerfFile();  // openSchedularPerfFile
+    fclose(SchedulerPerfFile);
+
     shmdt(remainingTime);
     // upon termination release the clock resources.
 
@@ -453,7 +490,6 @@ void SRTN()
                 }
             }
         }
-
 
         if (current_process != NULL && remainingTime[current_process->id] == 0 && PID != 0)
         {
