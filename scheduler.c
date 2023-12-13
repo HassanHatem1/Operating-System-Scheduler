@@ -114,6 +114,13 @@ void OpenSchedulerLogFile()
     }
 }
 
+#include <math.h>
+
+double round2dp(double num)
+{
+    return round(num * 100.0) / 100.0;
+}
+
 void OpenSchedulerPerfFile()
 {
     SchedulerPerfFile = fopen("SchedulerPerf", "w"); // Open the file in write mode
@@ -125,15 +132,15 @@ void OpenSchedulerPerfFile()
     else
     {
         int elapsed_time = maxFinish - minStart; // total elapsed time
-        double AWTA = TWTA / process_count;
-        double AWT = totalwaiting / process_count;
+        double AWTA = round2dp(TWTA / process_count);
+        double AWT = round2dp(totalwaiting / process_count);
         double sum = 0;
         for (int i = 1; i <= process_count; i++)
         {
             sum += pow((double)(weighted_TAs[i] - AWTA), (double)2);
         }
-        double STD = pow((sum / process_count), 0.5);
-        double Utilization = (totalrunning * 100.0) / elapsed_time;
+        double STD = round2dp(pow((sum / process_count), 0.5));
+        double Utilization = round2dp((totalrunning * 100.0) / elapsed_time);
         fprintf(SchedulerPerfFile, " CPU Utilization = %.2f%% \n Avg. WTA = %.2f \n Avg. Waiting = %.2f \n Std. WTA = %.2f",
                 Utilization, AWTA, AWT, STD);
     }
