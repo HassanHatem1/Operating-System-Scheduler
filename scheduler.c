@@ -170,8 +170,16 @@ void finishProcess(struct PCB *process)
     }
     if (algorithm_num == 3)
     {
+        if(process->remainingTime<quantum_time)
+        {
+        process->running += process->remainingTime;
+        totalrunning += process->remainingTime; // for CPU utilization of RR
+        }
+        else
+        {
         process->running += quantum_time;
         totalrunning += quantum_time; // for CPU utilization of RR
+        }
     }
     int TA = finish_time - process->arrival;
     double WTA = (TA * 1.0000) / process->burst;
