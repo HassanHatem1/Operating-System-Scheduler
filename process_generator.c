@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
     // --> already done in the beginning of the main function
 
     // 6. Send the information to the scheduler at the appropriate time.
-    qsort(processes, processes_count, sizeof(Process), comp); // sort the processes according to arrival time
+    // qsort(processes, processes_count, sizeof(Process), comp); // sort the processes according to arrival time
 
     int index = 0;
     while (index < processes_count)

@@ -9,8 +9,8 @@ void SRTN(); // shortest remaining time next
 void RR();   // Round Robin
 void clearResources(int signum);
 
-int process_count, quantum_time, msgq_id, sharedMemory_id, process_schedulerSHMID, arrivals_shm_id, finished_processes, totalwaiting, totalrunning = 0;
-double TWTA = 0;
+int process_count, quantum_time, msgq_id, sharedMemory_id, process_schedulerSHMID, arrivals_shm_id, finished_processes, totalrunning = 0;
+double TWTA = 0, totalwaiting = 0;
 int algorithm_num;
 int *remainingTime;
 int *weighted_TAs;
@@ -154,35 +154,16 @@ void finishProcess(struct PCB *process)
 {
     int finish_time = getClk();
     process->finish = finish_time;
+
     if (finish_time >= maxFinish)
         maxFinish = finish_time; // to calculate total elapsed time
-    process->remainingTime = 0;
 
-    if (algorithm_num == 1)
-    {
-        process->running = process->burst;
-        totalrunning += process->running; // for CPU utilization of HPF
-    }
-    if (algorithm_num == 2)
-    {
-        process->running += (process->burst - process->remainingTime);
-        totalrunning += (process->burst - process->remainingTime); // for CPU utilization of SRTN
-    }
-    if (algorithm_num == 3)
-    {
-        if(process->remainingTime<quantum_time)
-        {
-        process->running += process->remainingTime;
-        totalrunning += process->remainingTime; // for CPU utilization of RR
-        }
-        else
-        {
-        process->running += quantum_time;
-        totalrunning += quantum_time; // for CPU utilization of RR
-        }
-    }
+    process->remainingTime = 0;
+    process->running = process->burst;
+    totalrunning += process->running; // for CPU utilization
     int TA = finish_time - process->arrival;
     double WTA = (TA * 1.0000) / process->burst;
+
     // saving data for last statistics
     weighted_TAs[process->id] = WTA;
     waiting_times[process->id] = process->wait;
@@ -202,7 +183,7 @@ void continueProcess(struct PCB *process)
     process->remainingTime = (diff < 0) ? 0 : diff; // burst - running time  ;
 
     fprintf(SchedulerLogFile, "At time %d process %d resumed arr %d total %d remain %d wait %d\n",
-            getClk(), process->id, process->arrival, process->burst, process->remainingTime, process->wait);
+            continue_time, process->id, process->arrival, process->burst, process->remainingTime, process->wait);
 
     int *prev = (int *)shmat(process_schedulerSHMID, (void *)0, 0); //
     *prev = getClk();
@@ -220,17 +201,15 @@ void stopProcess(struct PCB *process)
     if (algorithm_num == 3)
     {
         process->running += quantum_time;
-        totalrunning += quantum_time; // for CPU utilization of RR
     }
     else
     {
         process->running += process->burst - remainingTime[process->id];
-        totalrunning += process->burst - remainingTime[process->id]; // for CPU utilization of SRTN
     }
     process->remainingTime = process->burst - process->running; // sharedmem[id]
 
     fprintf(SchedulerLogFile, "At time %d process %d stopped arr %d total %d remain %d wait %d\n",
-            getClk(), process->id, process->arrival, process->burst, process->remainingTime, process->wait);
+            last_stop_time, process->id, process->arrival, process->burst, process->remainingTime, process->wait);
 
     printf("process %d stopped\n", process->id);
 
@@ -353,7 +332,23 @@ void HPF()
         }
     }
 }
-void RR() // round robin
+
+void enqueueProcess(struct Queue *queue)
+{
+    Msgbuff msg;
+    do
+    {
+        msg = receiveProcess();
+        if (msg.mtype != -1)
+        {
+            struct PCB *processPCB = createPCB(msg.proc);
+            printf("process %d pushed in the queue at time %d\n", processPCB->id, getClk());
+            enqueue(queue, processPCB);
+        }
+    } while (msg.mtype != -1);
+}
+
+void RR() 
 {
     printf("Round Robin Starts\n");
     printf("Quantum time = %d\n", quantum_time);
@@ -376,7 +371,6 @@ void RR() // round robin
             isRunningProcess = 1;
             if (current_running_process->running == 0)
             {
-
                 int PID = fork();
                 if (PID == -1)
                 {
@@ -424,32 +418,15 @@ void RR() // round robin
             {
                 stopProcess(current_running_process);
                 struct PCB *temp = current_running_process;
-                // check if another process arrived at the same time and push it in the queue
-                Msgbuff msg2;
-                do
-                {
-                    msg2 = receiveProcess();
-                    if (msg2.mtype != -1)
-                    {
-                        struct PCB *processPCB = createPCB(msg2.proc);
-                        printf("process %d pushed in the queue at time %d\n", processPCB->id, getClk());
-                        enqueue(readyQueue, processPCB);
-                    }
-                } while (msg2.mtype != -1);
-
+                enqueueProcess(readyQueue);
                 enqueue(readyQueue, temp);
                 current_running_process = NULL;
             }
         }
-        Msgbuff msg = receiveProcess();
-        if (msg.mtype != -1)
-        {
-            struct PCB *processPCB = createPCB(msg.proc);
-            printf("process %d pushed in the queue at time %d\n", processPCB->id, getClk());
-            enqueue(readyQueue, processPCB);
-        }
+        enqueueProcess(readyQueue);
     }
 }
+
 void SRTN()
 {
     printf("SRTN starts\n");
