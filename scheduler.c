@@ -9,13 +9,14 @@ void SRTN(); // shortest remaining time next
 void RR();   // Round Robin
 void clearResources(int signum);
 
-int process_count, quantum_time, msgq_id, sharedMemory_id, process_schedulerSHMID, arrivals_shm_id, finished_processes, totalwaiting = 0;
+int process_count, quantum_time, msgq_id, sharedMemory_id, process_schedulerSHMID, arrivals_shm_id, finished_processes, totalwaiting, totalrunning = 0;
 double TWTA = 0;
 int algorithm_num;
 int *remainingTime;
 int *weighted_TAs;
 int *waiting_times;
-
+int minStart = INT_MAX;
+int maxFinish = INT_MIN;
 // msgq_id --> msgqueue between scheduler and process generator
 
 FILE *SchedulerLogFile;
@@ -116,7 +117,6 @@ void OpenSchedulerLogFile()
 void OpenSchedulerPerfFile()
 {
     SchedulerPerfFile = fopen("SchedulerPerf", "w"); // Open the file in write mode
-
     if (SchedulerPerfFile == NULL)
     {
         printf("Error opening SchedularPerf  file.\n");
@@ -124,16 +124,18 @@ void OpenSchedulerPerfFile()
     }
     else
     {
+        int elapsed_time = maxFinish - minStart; // total elapsed time
         double AWTA = TWTA / process_count;
         double AWT = totalwaiting / process_count;
         double sum = 0;
         for (int i = 1; i <= process_count; i++)
         {
-            sum += pow( (double) (weighted_TAs[i] - AWTA), (double) 2);
+            sum += pow((double)(weighted_TAs[i] - AWTA), (double)2);
         }
         double STD = pow((sum / process_count), 0.5);
-        fprintf(SchedulerPerfFile, "CPU Utilization = %d%% \n Avg. WTA = %.2f \n Avg. Waiting = %.2f \n Std. WTA = %.2f",
-                100, AWTA, AWT, STD);
+        double Utilization = (totalrunning * 100.0) / elapsed_time;
+        fprintf(SchedulerPerfFile, " CPU Utilization = %.2f%% \n Avg. WTA = %.2f \n Avg. Waiting = %.2f \n Std. WTA = %.2f",
+                Utilization, AWTA, AWT, STD);
     }
 }
 
@@ -141,6 +143,8 @@ void startProcess(struct PCB *process)
 {
     int start_time = getClk();
     process->start = start_time;
+    if (start_time <= minStart)
+        minStart = start_time; // to calculate total elapsed time
     process->wait = (start_time - process->arrival);
     process->remainingTime = process->burst;
     fprintf(SchedulerLogFile, "At time %d process %d started arr %d total %d remain %d wait %d\n",
@@ -150,17 +154,25 @@ void finishProcess(struct PCB *process)
 {
     int finish_time = getClk();
     process->finish = finish_time;
+    if (finish_time >= maxFinish)
+        maxFinish = finish_time; // to calculate total elapsed time
     process->remainingTime = 0;
 
     if (algorithm_num == 1)
+    {
         process->running = process->burst;
-
+        totalrunning += process->running; // for CPU utilization of HPF
+    }
     if (algorithm_num == 2)
+    {
         process->running += (process->burst - process->remainingTime);
-
+        totalrunning += (process->burst - process->remainingTime); // for CPU utilization of SRTN
+    }
     if (algorithm_num == 3)
+    {
         process->running += quantum_time;
-
+        totalrunning += quantum_time; // for CPU utilization of RR
+    }
     int TA = finish_time - process->arrival;
     double WTA = (TA * 1.0000) / process->burst;
     // saving data for last statistics
@@ -198,10 +210,15 @@ void stopProcess(struct PCB *process)
     process->stop = last_stop_time;
 
     if (algorithm_num == 3)
+    {
         process->running += quantum_time;
+        totalrunning += quantum_time; // for CPU utilization of RR
+    }
     else
+    {
         process->running += process->burst - remainingTime[process->id];
-
+        totalrunning += process->burst - remainingTime[process->id]; // for CPU utilization of SRTN
+    }
     process->remainingTime = process->burst - process->running; // sharedmem[id]
 
     fprintf(SchedulerLogFile, "At time %d process %d stopped arr %d total %d remain %d wait %d\n",
