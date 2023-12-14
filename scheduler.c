@@ -9,6 +9,7 @@ void SRTN(); // shortest remaining time next
 void RR();   // Round Robin
 void clearResources(int signum);
 
+
 int process_count, quantum_time, msgq_id, sharedMemory_id, process_schedulerSHMID, arrivals_shm_id, finished_processes, totalrunning = 0;
 double TWTA = 0, totalwaiting = 0;
 int algorithm_num;
@@ -17,11 +18,13 @@ int *weighted_TAs;
 int *waiting_times;
 int minStart = INT_MAX;
 int maxFinish = INT_MIN;
-// msgq_id --> msgqueue between scheduler and process generator
+
 
 FILE *SchedulerLogFile;
 FILE *SchedulerPerfFile;
 
+
+//Create PCB from process
 struct PCB *createPCB(Process proc)
 {
     struct PCB *pcb = (struct PCB *)malloc(sizeof(struct PCB));
@@ -29,62 +32,15 @@ struct PCB *createPCB(Process proc)
     pcb->arrival = proc.arrival_time;
     pcb->burst = proc.running_time;
     pcb->priority = proc.priority;
-    pcb->remainingTime = proc.running_time; // burst - running time  ;
+    pcb->remainingTime = proc.running_time;
     pcb->running = 0;
     pcb->wait = 0;
     pcb->stop = 0;
     pcb->stopped = false;
-
     return pcb;
 }
 
-Msgbuff receiveProcess()
-{
-    Msgbuff msg;
-    int rec_val = msgrcv(msgq_id, &msg, sizeof(msg.proc), 0, IPC_NOWAIT);
-    if (rec_val == -1)
-    {
-        msg.mtype = -1; // indicator that no message received
-        // printf("fuck it \n");
-        return msg;
-    }
-    remainingTime[msg.proc.id] = msg.proc.running_time;
-    return msg;
-}
-
-void intializeSharedMemory()
-{
-    // shared memory for storing remaining time between process and scheduler
-    key_t key = ftok("SharedMemoryKeyFile", sharedMemKey);
-    if (key == -1)
-    {
-        perror("Error in creating the key of Shared memory in scheduler\n");
-        exit(-1);
-    }
-    sharedMemory_id = shmget(key, (process_count + 1) * sizeof(int), IPC_CREAT | 0666); // +1 working with 1-based indexing not 0-based indexing
-    if (sharedMemory_id == -1)
-    {
-        perror("Error in creating the ID of shared memory in scheduler\n");
-        exit(-1);
-    }
-
-    key_t key2 = ftok("process_schedulerSHM", process_schedulerSHMKey);
-    if (key2 == -1)
-    {
-        perror("Error in creating the key of Shared memory in scheduler\n");
-        exit(-1);
-    }
-    process_schedulerSHMID = shmget(key2, 1 * sizeof(int), IPC_CREAT | 0666);
-    if (process_schedulerSHMID == -1)
-    {
-        perror("Error in creating the ID of between  process and scheduler \n");
-        exit(-1);
-    }
-
-    printf("shared memory created successfully in scheduler with ID : %d \n", sharedMemory_id);
-    printf("shared memory (for prevClk trial ) created successfully in scheduler with ID : %d \n", process_schedulerSHMID);
-}
-
+// intialize message queue needed for communication between process generator and scheduler
 void intializeMessageQueue()
 {
     key_t key_id;
@@ -103,6 +59,57 @@ void intializeMessageQueue()
     printf("Message queue created successfully in scheduler with ID : %d \n", msgq_id);
 }
 
+//Msg queue recieving function
+Msgbuff receiveProcess()
+{
+    Msgbuff msg;
+    int rec_val = msgrcv(msgq_id, &msg, sizeof(msg.proc), 0, IPC_NOWAIT);
+    if (rec_val == -1)
+    {
+        msg.mtype = -1; // indicator that no message received
+        return msg;
+    }
+    remainingTime[msg.proc.id] = msg.proc.running_time;
+    return msg;
+}
+
+// intialize shared memory needed for the scheduler
+void intializeSharedMemory()
+{
+    // shared memory for storing remaining time between process and scheduler
+    key_t key = ftok("SharedMemoryKeyFile", sharedMemKey);
+    if (key == -1)
+    {
+        perror("Error in creating the key of Shared memory in scheduler\n");
+        exit(-1);
+    }
+    sharedMemory_id = shmget(key, (process_count + 1) * sizeof(int), IPC_CREAT | 0666); // +1 working with 1-based indexing not 0-based indexing
+    if (sharedMemory_id == -1)
+    {
+        perror("Error in creating the ID of shared memory in scheduler\n");
+        exit(-1);
+    }
+
+    // shared memory for storing previous clock time between process and scheduler
+    key_t key2 = ftok("process_schedulerSHM", process_schedulerSHMKey);
+    if (key2 == -1)
+    {
+        perror("Error in creating the key of Shared memory in scheduler\n");
+        exit(-1);
+    }
+    process_schedulerSHMID = shmget(key2, 1 * sizeof(int), IPC_CREAT | 0666);
+    if (process_schedulerSHMID == -1)
+    {
+        perror("Error in creating the ID of between  process and scheduler \n");
+        exit(-1);
+    }
+
+    printf("shared memory created successfully in scheduler with ID : %d \n", sharedMemory_id);
+    printf("shared memory (for prevClk trial ) created successfully in scheduler with ID : %d \n", process_schedulerSHMID);
+}
+
+
+// open the log file
 void OpenSchedulerLogFile()
 {
     SchedulerLogFile = fopen("SchedulerLog", "w"); // Open the file in write mode
@@ -114,13 +121,13 @@ void OpenSchedulerLogFile()
     }
 }
 
-#include <math.h>
-
+// round to 2 decimal places
 double round2dp(double num)
 {
     return round(num * 100.0) / 100.0;
 }
 
+// open the performance file and write the statistics
 void OpenSchedulerPerfFile()
 {
     SchedulerPerfFile = fopen("SchedulerPerf", "w"); // Open the file in write mode
@@ -146,17 +153,22 @@ void OpenSchedulerPerfFile()
     }
 }
 
+// When a process starts, it will update its attributes and it will write in the log file
 void startProcess(struct PCB *process)
 {
     int start_time = getClk();
     process->start = start_time;
+
     if (start_time <= minStart)
         minStart = start_time; // to calculate total elapsed time
+
     process->wait = (start_time - process->arrival);
     process->remainingTime = process->burst;
     fprintf(SchedulerLogFile, "At time %d process %d started arr %d total %d remain %d wait %d\n",
             start_time, process->id, process->arrival, process->burst, process->burst, process->wait);
 }
+
+// When a process finishes, it will update its attributes and it will write in the log file
 void finishProcess(struct PCB *process)
 {
     int finish_time = getClk();
@@ -182,6 +194,7 @@ void finishProcess(struct PCB *process)
             finish_time, process->id, process->arrival, process->burst, 0, process->wait, TA, WTA);
 }
 
+// When a process stops, it will update its attributes and it will write in the log file
 void continueProcess(struct PCB *process)
 {
     int continue_time = getClk();
@@ -197,6 +210,7 @@ void continueProcess(struct PCB *process)
     shmdt(prev);
     printf("process %d continued\n", process->id);
 
+    //send continue signal to the process
     kill(process->pid, SIGCONT);
 }
 
@@ -213,13 +227,14 @@ void stopProcess(struct PCB *process)
     {
         process->running += process->burst - remainingTime[process->id];
     }
-    process->remainingTime = process->burst - process->running; // sharedmem[id]
+    process->remainingTime = process->burst - process->running;
 
     fprintf(SchedulerLogFile, "At time %d process %d stopped arr %d total %d remain %d wait %d\n",
             last_stop_time, process->id, process->arrival, process->burst, process->remainingTime, process->wait);
 
     printf("process %d stopped\n", process->id);
 
+    //send stop signal to the process
     kill(process->pid, SIGSTOP); // stop the process
 }
 
@@ -228,14 +243,15 @@ void testkill(int signum)
     printf("process killed by something \n");
     raise(SIGINT);
 }
+
 int main(int argc, char *argv[])
 {
-    initClk();
     // argv[0] count of process ;
     // argv[1] chosen algorithm ;
     // argv[2] quantum time if RR ;
+    initClk();
     signal(SIGINT, clearResources);
-    signal(SIGSTOP, testkill); // to test kill
+    signal(SIGSTOP, testkill);              // to test kill
     process_count = atoi(argv[0]);
     algorithm_num = atoi(argv[1]);
     quantum_time = 0;
@@ -254,7 +270,6 @@ int main(int argc, char *argv[])
 
     printf("Scheduler starts\n");
 
-    // TODO implement the scheduler
     if (algorithm_num == 1)
         HPF();
     else if (algorithm_num == 2)
@@ -269,45 +284,53 @@ int main(int argc, char *argv[])
     fclose(SchedulerPerfFile);
 
     shmdt(remainingTime);
-    // upon termination release the clock resources.
 
     raise(SIGINT); // to clean all resources and end
 }
+
 void HPF()
 {
     printf("HPF Starts\n");
-    // priority Queue ;
-    Node *PriorityQueue = NULL; // head
+
+    // In HPF we need to sort the processes according to their priority, so we will use a priority queue
+    Node *PriorityQueue = NULL;
+
+    // intialize the remaining time shared memory
     remainingTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
+
     if (remainingTime == (void *)-1)
     {
         printf("Error attaching shared memory segment\n");
         exit(-1);
     }
+
     struct PCB *current_process = NULL;
 
     while (finished_processes < process_count)
     {
+        // at start of each loop we need to check if there is any process arrived at this time
+        // here a do while is used as we need to fill the queue with all the processes that arrived at a single arrival time
+        // in case of ties, according to our priority queue implementation and the way that processes are sent by order, if there are two processes with the same priority, the one that pushed first will be executed first
+        // or in other words, the one which is present earlier in the the table of processes will be executed first
         Msgbuff msg;
-        // here we fill the queue with the processes that arrived at a single arrival time
-        // this ensure that if many processes arrived at the same time, the one with the highest priority will be executed first
         do
         {
             msg = receiveProcess();
-            if (msg.mtype != -1)
+            if (msg.mtype != -1 && msg.proc.arrival_time == getClk())
             {
                 printf("entered\n");
                 struct PCB *processPCB = createPCB(msg.proc);
                 push(&PriorityQueue, processPCB, processPCB->priority);
                 printf("process %d pushed in the priority  queue\n", processPCB->id);
             }
-        } while (msg.mtype != -1);
+        } while (msg.mtype != -1 && msg.proc.arrival_time == getClk());
 
+        // if there is no process running and there is a process in the queue, we will run it and pop it from the priority queue till it finishes
         if (!isEmptyPQ(&PriorityQueue) && (current_process == NULL))
         {
             current_process = peek(&PriorityQueue);
             pop(&PriorityQueue);
-            startProcess(current_process);
+
             int PID = fork();
             if (PID == -1)
             {
@@ -322,15 +345,16 @@ void HPF()
                 sprintf(id_str, "%d", current_process->id);
                 sprintf(count_str, "%d", process_count);
 
-                system("gcc -Wall -o process.out process.c -lm -fno-stack-protector");
-
                 execl("./process.out", id_str, count_str, NULL);
             }
             else
             {
                 current_process->pid = PID;
+                startProcess(current_process);
             }
         }
+
+        // if there is a process running and its remaining time is = 0, we will finish it and set the current process to NULL and increment the finished processes counter
         if (current_process != NULL && remainingTime[current_process->id] == 0)
         {
             finishProcess(current_process);
@@ -340,19 +364,20 @@ void HPF()
     }
 }
 
-void enqueueProcess(struct Queue *queue)
+//this function is used to enqueue all the processes that arrived at a single clk time
+void enque_processes(struct Queue *queue)
 {
     Msgbuff msg;
     do
     {
         msg = receiveProcess();
-        if (msg.mtype != -1)
+        if (msg.mtype != -1 && msg.proc.arrival_time == getClk())
         {
             struct PCB *processPCB = createPCB(msg.proc);
             printf("process %d pushed in the queue at time %d\n", processPCB->id, getClk());
             enqueue(queue, processPCB);
         }
-    } while (msg.mtype != -1);
+    } while (msg.mtype != -1 && msg.proc.arrival_time == getClk());
 }
 
 void RR() 
@@ -360,22 +385,31 @@ void RR()
     printf("Round Robin Starts\n");
     printf("Quantum time = %d\n", quantum_time);
 
+    // In RR we only need a queue to store the processes
     struct Queue *readyQueue = createQueue(process_count);
+
+    // intialize the remaining time shared memory
     remainingTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
     if (remainingTime == (void *)-1)
     {
         printf("Error attaching shared memory segment in RR\n");
         exit(-1);
     }
+
     struct PCB *current_running_process = NULL;
     int startTime = 0, isRunningProcess = 0;
+
     while (finished_processes < process_count)
     {
+        // if there is a tie between two processes, the one that pushed in first will be executed first, which is also the one that is present earlier in the table of processes
+        // if there is no process running and there is a process in the queue, we will run it and deque it from the queue
         if (!isEmpty(readyQueue) && !isRunningProcess)
         {
             current_running_process = dequeue(readyQueue);
             startTime = getClk();
             isRunningProcess = 1;
+
+            // if it the first time the process runs, we will create it and start it
             if (current_running_process->running == 0)
             {
                 int PID = fork();
@@ -384,7 +418,7 @@ void RR()
                     perror("Error in creating the process in scheduler RR \n");
                     exit(-1);
                 }
-                else if (PID == 0)
+                else if (PID == 0)     // process
                 {
                     char id_str[10];
                     char count_str[10];
@@ -392,56 +426,69 @@ void RR()
                     sprintf(id_str, "%d", current_running_process->id);
                     sprintf(count_str, "%d", process_count);
 
-                    // system("gcc -Wall -o process.out process.c -lm -fno-stack-protector");
-
                     execl("./process.out", id_str, count_str, NULL);
                 }
-                else
+                else    // scheduler now will assign the PID to the process and start it
                 {
 
                     current_running_process->pid = PID;
                     startProcess(current_running_process);
                 }
             }
-            else
-            { // means that the process was stopped and now we need to continue it
+            else    //means that the process was stopped before and now we need to continue it
+            {  
                 continueProcess(current_running_process);
             }
         }
 
+        // if there is a process running and its quantum is finished or even before the quantum is finished its remaining time became = 0 
+        // we will finish it and set the current process to NULL and increment the finished processes counter
         if (isRunningProcess && (((getClk() - startTime) == quantum_time) || (remainingTime[current_running_process->id] == 0)))
         {
             isRunningProcess = 0;
             startTime = 0;
             printf("----------remTime: %d, -----id %d\n", remainingTime[current_running_process->id], current_running_process->id);
 
+            // if remtime is 0, then the process is finished
             if (remainingTime[current_running_process->id] == 0)
             {
                 finished_processes++;
                 finishProcess(current_running_process);
                 current_running_process = NULL;
             }
+
+            // if remtime is not 0, then the process is not finished and we need to stop it and enqueue it again
+            // but before we enque it again, we need to enque all the other processes that arrived at this time if there is any
             else
             {
                 stopProcess(current_running_process);
                 struct PCB *temp = current_running_process;
-                enqueueProcess(readyQueue);
+                enque_processes(readyQueue);
                 enqueue(readyQueue, temp);
                 current_running_process = NULL;
             }
         }
-        enqueueProcess(readyQueue);
+
+        // if there is no process running and there is no process in the queue, we will enque all the processes that arrived at this time
+        enque_processes(readyQueue);
     }
 }
 
 void SRTN()
 {
     printf("SRTN starts\n");
+
     int PID = 1;
     Msgbuff msg;
+
+    // In SRTN we need to sort the processes according to their remaining time, so we will use a priority queue
     Node *PriorityQueue = NULL;
+
     struct PCB *current_process = NULL;
+
+    // intialize the remaining time shared memory
     remainingTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
+
     if (remainingTime == (void *)-1)
     {
         printf("Error attaching shared memory segment\n");
@@ -450,17 +497,21 @@ void SRTN()
 
     while (finished_processes < process_count)
     {
+        // at ties the process that was pushed first will be executed first, which is also the one that is present earlier in the table of processes
+        // at start of each loop we need to check if there is any process arrived at this time to push them
         do
         {
             msg = receiveProcess();
-            if (msg.mtype != -1)
+            if (msg.mtype != -1 && msg.proc.arrival_time == getClk())
             {
                 struct PCB *processPCB = createPCB(msg.proc);
                 printf("process %d pushed in the queue at %d\n", processPCB->id, getClk());
                 push(&PriorityQueue, processPCB, processPCB->remainingTime);
             }
-        } while (msg.mtype != -1);
+        } while (msg.mtype != -1 && msg.proc.arrival_time == getClk());
 
+
+        // if there is no process running and there is a process in the queue, we will run it and pop it from the priority queue
         if (!isEmptyPQ(&PriorityQueue) && current_process == NULL)
         {
             printf("entered 1st at: %d\n", getClk());
@@ -468,13 +519,15 @@ void SRTN()
             current_process = peek(&PriorityQueue);
             pop(&PriorityQueue);
 
+            // if the process was stopped before, we will continue it
             if (current_process->stopped)
             {
                 continueProcess(current_process);
             }
+
+            // if it the first time the process runs, we will create it and start it
             else
             {
-                startProcess(current_process);
                 PID = fork();
                 if (PID == -1)
                 {
@@ -493,13 +546,15 @@ void SRTN()
 
                     execl("./process.out", id_str, count_str, NULL);
                 }
-                else
+                else // scheduler now will assign the PID to the process and start it
                 {
                     current_process->pid = PID;
+                    startProcess(current_process);
                 }
             }
         }
-
+        
+        // if there is a process running and its remaining time is = 0, we will finish it and set the current process to NULL and increment the finished processes counter
         if (current_process != NULL && remainingTime[current_process->id] == 0 && PID != 0)
         {
             printf("entered 2nd at: %d\n", getClk());
@@ -507,6 +562,8 @@ void SRTN()
             current_process = NULL;
             finished_processes++;
         }
+
+        // if there is a process running and there is a process in the queue with less remaining time, we will stop the current process and push it in the priority queue
         else if (current_process != NULL && !isEmptyPQ(&PriorityQueue) && remainingTime[current_process->id] > peek(&PriorityQueue)->remainingTime && PID != 0)
         {
             printf("entered 3rd at: %d\n", getClk());
@@ -520,7 +577,6 @@ void SRTN()
 
 void clearResources(int signum)
 {
-    // TODO Clears all resources in case of interruption
     printf("Clearing due to interruption\n");
     destroyClk(true);
     msgctl(msgq_id, IPC_RMID, (struct msqid_ds *)0);

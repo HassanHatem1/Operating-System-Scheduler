@@ -33,6 +33,7 @@ int main(int agrc, char *argv[])
     int *prev = (int *)shmat(prevclkid, (void *)0, 0); // shared memory for remaining time of the process
     (*prev) = getClk();
 
+
     while (sharedMem[id] > 0)
     {
 
@@ -42,6 +43,7 @@ int main(int agrc, char *argv[])
         }
         while (getClk() == (*prev))
         {
+            // one cycle
         }
 
         *prev = getClk();
