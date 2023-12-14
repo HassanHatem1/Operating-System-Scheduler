@@ -9,22 +9,18 @@ void SRTN(); // shortest remaining time next
 void RR();   // Round Robin
 void clearResources(int signum);
 
-
 int process_count, quantum_time, msgq_id, sharedMemory_id, process_schedulerSHMID, arrivals_shm_id, finished_processes, totalrunning = 0;
 double TWTA = 0, totalwaiting = 0;
 int algorithm_num;
 int *remainingTime;
 int *weighted_TAs;
 int *waiting_times;
-int minStart = INT_MAX;
 int maxFinish = INT_MIN;
-
 
 FILE *SchedulerLogFile;
 FILE *SchedulerPerfFile;
 
-
-//Create PCB from process
+// Create PCB from process
 struct PCB *createPCB(Process proc)
 {
     struct PCB *pcb = (struct PCB *)malloc(sizeof(struct PCB));
@@ -59,7 +55,7 @@ void intializeMessageQueue()
     printf("Message queue created successfully in scheduler with ID : %d \n", msgq_id);
 }
 
-//Msg queue recieving function
+// Msg queue recieving function
 Msgbuff receiveProcess()
 {
     Msgbuff msg;
@@ -108,7 +104,6 @@ void intializeSharedMemory()
     printf("shared memory (for prevClk trial ) created successfully in scheduler with ID : %d \n", process_schedulerSHMID);
 }
 
-
 // open the log file
 void OpenSchedulerLogFile()
 {
@@ -138,7 +133,7 @@ void OpenSchedulerPerfFile()
     }
     else
     {
-        int elapsed_time = maxFinish - minStart; // total elapsed time
+        int elapsed_time = maxFinish - 1; // total elapsed time from time 1 till finish time of last process
         double AWTA = round2dp(TWTA / process_count);
         double AWT = round2dp(totalwaiting / process_count);
         double sum = 0;
@@ -158,9 +153,6 @@ void startProcess(struct PCB *process)
 {
     int start_time = getClk();
     process->start = start_time;
-
-    if (start_time <= minStart)
-        minStart = start_time; // to calculate total elapsed time
 
     process->wait = (start_time - process->arrival);
     process->remainingTime = process->burst;
@@ -210,7 +202,7 @@ void continueProcess(struct PCB *process)
     shmdt(prev);
     printf("process %d continued\n", process->id);
 
-    //send continue signal to the process
+    // send continue signal to the process
     kill(process->pid, SIGCONT);
 }
 
@@ -234,7 +226,7 @@ void stopProcess(struct PCB *process)
 
     printf("process %d stopped\n", process->id);
 
-    //send stop signal to the process
+    // send stop signal to the process
     kill(process->pid, SIGSTOP); // stop the process
 }
 
@@ -251,7 +243,7 @@ int main(int argc, char *argv[])
     // argv[2] quantum time if RR ;
     initClk();
     signal(SIGINT, clearResources);
-    signal(SIGSTOP, testkill);              // to test kill
+    signal(SIGSTOP, testkill); // to test kill
     process_count = atoi(argv[0]);
     algorithm_num = atoi(argv[1]);
     quantum_time = 0;
@@ -305,12 +297,12 @@ void HPF()
     }
 
     struct PCB *current_process = NULL;
-
     while (finished_processes < process_count)
     {
         // at start of each loop we need to check if there is any process arrived at this time
         // here a do while is used as we need to fill the queue with all the processes that arrived at a single arrival time
-        // in case of ties, according to our priority queue implementation and the way that processes are sent by order, if there are two processes with the same priority, the one that pushed first will be executed first
+        // in case of ties, according to our priority queue implementation and the way that processes are sent by order,
+        // if there are two processes with the same priority, the one that pushed first will be executed first
         // or in other words, the one which is present earlier in the the table of processes will be executed first
         Msgbuff msg;
         do
@@ -347,7 +339,7 @@ void HPF()
 
                 execl("./process.out", id_str, count_str, NULL);
             }
-            else
+            else // scheduler now will assign the PID to the process and start it
             {
                 current_process->pid = PID;
                 startProcess(current_process);
@@ -364,7 +356,7 @@ void HPF()
     }
 }
 
-//this function is used to enqueue all the processes that arrived at a single clk time
+// this function is used to enqueue all the processes that arrived at a single clk time
 void enque_processes(struct Queue *queue)
 {
     Msgbuff msg;
@@ -380,7 +372,7 @@ void enque_processes(struct Queue *queue)
     } while (msg.mtype != -1 && msg.proc.arrival_time == getClk());
 }
 
-void RR() 
+void RR()
 {
     printf("Round Robin Starts\n");
     printf("Quantum time = %d\n", quantum_time);
@@ -418,7 +410,7 @@ void RR()
                     perror("Error in creating the process in scheduler RR \n");
                     exit(-1);
                 }
-                else if (PID == 0)     // process
+                else if (PID == 0) // process
                 {
                     char id_str[10];
                     char count_str[10];
@@ -428,23 +420,24 @@ void RR()
 
                     execl("./process.out", id_str, count_str, NULL);
                 }
-                else    // scheduler now will assign the PID to the process and start it
+                else // scheduler now will assign the PID to the process and start it
                 {
 
                     current_running_process->pid = PID;
                     startProcess(current_running_process);
                 }
             }
-            else    //means that the process was stopped before and now we need to continue it
-            {  
+            else // means that the process was stopped before and now we need to continue it
+            {
                 continueProcess(current_running_process);
             }
         }
 
-        // if there is a process running and its quantum is finished or even before the quantum is finished its remaining time became = 0 
+        // if there is a process running and its quantum is finished or even before the quantum is finished its remaining time became = 0
         // we will finish it and set the current process to NULL and increment the finished processes counter
         if (isRunningProcess && (((getClk() - startTime) == quantum_time) || (remainingTime[current_running_process->id] == 0)))
         {
+
             isRunningProcess = 0;
             startTime = 0;
             printf("----------remTime: %d, -----id %d\n", remainingTime[current_running_process->id], current_running_process->id);
@@ -461,11 +454,22 @@ void RR()
             // but before we enque it again, we need to enque all the other processes that arrived at this time if there is any
             else
             {
-                stopProcess(current_running_process);
-                struct PCB *temp = current_running_process;
-                enque_processes(readyQueue);
-                enqueue(readyQueue, temp);
-                current_running_process = NULL;
+
+                // Check if the queue is empty and if the process has not finished its execution
+                // If true, then do not stop the process and let it continue to run
+                if (!isEmpty(readyQueue))
+                {
+                    stopProcess(current_running_process);
+                    struct PCB *temp = current_running_process;
+                    enque_processes(readyQueue);
+                    enqueue(readyQueue, temp);
+                    current_running_process = NULL;
+                }
+                else
+                {
+                    isRunningProcess = 1;
+                    startTime = getClk();
+                }
             }
         }
 
@@ -510,7 +514,6 @@ void SRTN()
             }
         } while (msg.mtype != -1 && msg.proc.arrival_time == getClk());
 
-
         // if there is no process running and there is a process in the queue, we will run it and pop it from the priority queue
         if (!isEmptyPQ(&PriorityQueue) && current_process == NULL)
         {
@@ -542,8 +545,6 @@ void SRTN()
                     sprintf(id_str, "%d", current_process->id);
                     sprintf(count_str, "%d", process_count);
 
-                    system("gcc -Wall -o process.out process.c -lm -fno-stack-protector");
-
                     execl("./process.out", id_str, count_str, NULL);
                 }
                 else // scheduler now will assign the PID to the process and start it
@@ -553,7 +554,7 @@ void SRTN()
                 }
             }
         }
-        
+
         // if there is a process running and its remaining time is = 0, we will finish it and set the current process to NULL and increment the finished processes counter
         if (current_process != NULL && remainingTime[current_process->id] == 0 && PID != 0)
         {
