@@ -7,10 +7,13 @@ getClk();
 ## You can use Makefile to build and run your project
 
 # To compile your project, use the command:
-make
+make build
 
 # To run your project, use the command:
 make run
+
+# To clean generated files, use the command:
+make clean
 
 # If you added a file to your project add it to the build section in the Makefile
 

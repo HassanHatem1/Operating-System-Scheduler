@@ -6,11 +6,7 @@ build:
 	gcc test_generator.c -o test_generator.out 
 
 clean:
-	# rm -f core.*
-	# rm -f core
-	# ./killprocess.sh;
 	rm -f *.out
-	# ipcrm -a  
 all: clean build
 run:
 	./process_generator.out
