@@ -104,6 +104,7 @@ typedef struct
     int priority;
     int arrival_time;
     int running_time;
+    int memsize;
 } Process;
 
 typedef struct
