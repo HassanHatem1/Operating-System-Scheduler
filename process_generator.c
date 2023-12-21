@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
                 perror("Error in sending the message\n");
                 exit(-1);
             }
-            printf("Process %d sent to the scheduler at time %d  and indx %d \n", processes[index].id, getClk(), index);
+            printf("Process %d sent to the scheduler at time %d  and index %d \n", processes[index].id, getClk(), index);
             index++;
         }
     }

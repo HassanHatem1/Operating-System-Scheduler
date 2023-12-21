@@ -2,8 +2,8 @@
 #define msgq_key 65     // msgqueue for scheduler and process generator
 #define sharedMemKey 44 // shared memory for remaining time of each process process
 #define process_schedulerSHMKey 55
-// #define arrivals_shm_key 88 // shared memory for storing number of arrivals at every arrival time
-
+#define Total_MemorySize 1024
+#define MAX_ProcessSize 256
 void HPF();  // highest priority first
 void SRTN(); // shortest remaining time next
 void RR();   // Round Robin
@@ -29,6 +29,7 @@ struct PCB *createPCB(Process proc)
     pcb->burst = proc.running_time;
     pcb->priority = proc.priority;
     pcb->remainingTime = proc.running_time;
+    pcb->memsize = proc.memsize;
     pcb->running = 0;
     pcb->wait = 0;
     pcb->stop = 0;

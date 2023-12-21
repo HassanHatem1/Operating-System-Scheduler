@@ -78,12 +78,13 @@ struct PCB
     int remainingTime;
     int stop;
     int priority;
+    int memsize;
     int start;
     int wait;
     bool stopped;
 };
 
-void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nFinish, int nRunning, int nStop, int nPriority, int nStart, int nWait, int nremainingTime)
+void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nFinish, int nRunning, int nStop, int nPriority, int nStart, int nWait, int nremainingTime,int nmemsize)
 {
     pcb->id = nID;
     pcb->pid = nPID;
@@ -93,6 +94,7 @@ void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nF
     pcb->running = nRunning;
     pcb->stop = nStop;
     pcb->remainingTime = nremainingTime;
+    pcb->memsize=nmemsize;
     pcb->priority = nPriority;
     pcb->start = nStart;
     pcb->wait = nWait;
@@ -292,5 +294,88 @@ void PQueuePrint(Node **head)
         printf("the node number %d which has id %d and burst time %d\n  and priority %d \n", index, start->process->id, start->process->burst, start->priority);
         index++;
         start = start->next;
+    }
+}
+// ---------------------------Memory management structs --------------------------------
+typedef struct Block
+{ // struct for block of memory
+    int size;
+    int is_free;         // flag to check if the block is free or not
+    struct Block *buddy; // pointer to the buddy block for when we want to merge
+    struct Block *parent;
+    struct Block *left_child;
+    struct Block *right_child;
+} Block;
+
+Block *CreateMemoryBlock(int memorySize)
+{ // function to create the memory block
+    Block *root = (Block *)malloc(sizeof(Block)); // allocate memory for the block (dynamic as we dont know the total number of blocks)
+    root->size = memorySize; // root size== Total Memory Size
+    root->is_free = 1;
+    root->buddy = NULL;
+    root->parent = NULL;
+    root->left_child = NULL;
+    root->right_child = NULL;
+    return root;
+}
+Block* allocate_memory(Block* root, int sizeOfProcess,bool* Isallocated) { // we will use size of process as the nearset (ceil) power of 2 of the memsize
+    // If the block is not free or too small, return NULL
+    if (!root->is_free || root->size < sizeOfProcess) {
+        *Isallocated=false;
+        return NULL;
+    }
+
+    // If the block is the right size, mark it as not free and return it
+    if (root->size == sizeOfProcess) {
+        *Isallocated=true;
+        root->is_free = 0;
+        return root;
+    }
+
+    // If the block is too big, split it and try to allocate from the left child
+    if (!root->left_child) {
+        root->left_child = CreateMemoryBlock(root->size / 2);
+        root->right_child = CreateMemoryBlock(root->size / 2);
+        root->left_child->parent = root;
+        root->right_child->parent = root;
+        root->left_child->buddy = root->right_child;
+        root->right_child->buddy = root->left_child;
+    }
+
+    Block* nextblock = allocate_memory(root->left_child, sizeOfProcess,Isallocated);
+    if (!nextblock) { // If the left child failed(too small or not free), try the right child
+        nextblock = allocate_memory(root->right_child, sizeOfProcess,Isallocated);
+    }
+    if (!nextblock) { // If the right child failed(too small or not free), return NULL
+       *Isallocated=false;
+    }
+    else
+    *Isallocated=true; 
+    return nextblock;
+}
+int Nearest_power_of_two(int x) {
+    return pow(2, ceil(log2(x)));
+}
+void deallocate_memory(Block* block) {
+    // If the block is already free, return
+    if (block->is_free) {
+        return;
+    }
+
+    // If the block is the root, mark it as free and return
+    if (!block->parent) {
+        block->is_free = 1;
+        return;
+    }
+
+    // If the buddy is free, merge with the buddy and deallocate the parent
+    if (block->buddy->is_free) {
+        Block* parent = block->parent;
+        parent->left_child = NULL;
+        parent->right_child = NULL;
+        deallocate_memory(parent);
+    }
+    else { // If the buddy is not free, just mark the block as free
+        block->is_free = 1;
     }
 }
