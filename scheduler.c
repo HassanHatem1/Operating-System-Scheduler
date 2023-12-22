@@ -34,6 +34,7 @@ struct PCB *createPCB(Process proc)
     pcb->wait = 0;
     pcb->stop = 0;
     pcb->stopped = false;
+    pcb->memoryBlock = NULL;
     return pcb;
 }
 
@@ -181,7 +182,7 @@ void finishProcess(struct PCB *process)
     waiting_times[process->id] = process->wait;
     TWTA += WTA;
     totalwaiting += process->wait;
-
+    // deallocate_memory(process->memoryBlock);
     printf("process %d finished\n", process->id);
     fprintf(SchedulerLogFile, "At time %d process %d finished arr %d total %d remain %d wait %d TA %d WTA %.2f\n",
             finish_time, process->id, process->arrival, process->burst, 0, process->wait, TA, WTA);
@@ -298,6 +299,11 @@ void HPF()
     }
 
     struct PCB *current_process = NULL;
+
+    Block *root = CreateMemoryBlock(Total_MemorySize);
+    // bool Isallocated = false;
+    struct Queue *waitingQueue = createQueue(process_count);
+    struct PCB *processPCB;
     while (finished_processes < process_count)
     {
         // at start of each loop we need to check if there is any process arrived at this time
@@ -312,9 +318,18 @@ void HPF()
             if (msg.mtype != -1 && msg.proc.arrival_time == getClk())
             {
                 printf("entered\n");
-                struct PCB *processPCB = createPCB(msg.proc);
-                push(&PriorityQueue, processPCB, processPCB->priority);
-                printf("process %d pushed in the priority  queue\n", processPCB->id);
+                processPCB = createPCB(msg.proc);
+                processPCB->memoryBlock = allocate_memory(root, Nearest_power_of_two(processPCB->memsize));
+                if (processPCB->memoryBlock != NULL)
+                {
+                    push(&PriorityQueue, processPCB, processPCB->priority);
+                    printf("process %d pushed in the priority  queue\n", processPCB->id);
+                }
+                else
+                {
+                    printf("process %d pushed in the waiting  queue\n", processPCB->id);
+                    enqueue(waitingQueue, processPCB);
+                }
             }
         } while (msg.mtype != -1 && msg.proc.arrival_time == getClk());
 
@@ -323,7 +338,7 @@ void HPF()
         {
             current_process = peek(&PriorityQueue);
             pop(&PriorityQueue);
-
+            // processPCB=current_process;
             int PID = fork();
             if (PID == -1)
             {
@@ -350,9 +365,27 @@ void HPF()
         // if there is a process running and its remaining time is = 0, we will finish it and set the current process to NULL and increment the finished processes counter
         if (current_process != NULL && remainingTime[current_process->id] == 0)
         {
+            deallocate_memory(current_process->memoryBlock);    
             finishProcess(current_process);
-            current_process = NULL;
             finished_processes++;
+            current_process = NULL;
+            while (!isEmpty(waitingQueue))
+            {
+                printf("entered again\n");
+                processPCB->memoryBlock = allocate_memory(root, Nearest_power_of_two(QueuePeek(waitingQueue)->memsize));
+                printf("allocated\n");
+                if (processPCB->memoryBlock != NULL)
+                {
+                    processPCB = dequeue(waitingQueue);
+                    printf("dequeued\n");
+                    push(&PriorityQueue, processPCB, processPCB->priority);
+                    printf("process %d pushed in the priority queue at time %d \n", processPCB->id, getClk());
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
     }
 }
@@ -490,7 +523,10 @@ void SRTN()
     Node *PriorityQueue = NULL;
 
     struct PCB *current_process = NULL;
-
+ 
+   Block *root = CreateMemoryBlock(Total_MemorySize);
+    struct Queue *waitingQueue = createQueue(process_count);
+    struct PCB *processPCB;
     // intialize the remaining time shared memory
     remainingTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
 
@@ -509,9 +545,19 @@ void SRTN()
             msg = receiveProcess();
             if (msg.mtype != -1 && msg.proc.arrival_time == getClk())
             {
-                struct PCB *processPCB = createPCB(msg.proc);
-                printf("process %d pushed in the queue at %d\n", processPCB->id, getClk());
-                push(&PriorityQueue, processPCB, processPCB->remainingTime);
+                //   printf("entered\n");
+                processPCB = createPCB(msg.proc);
+                processPCB->memoryBlock = allocate_memory(root, Nearest_power_of_two(processPCB->memsize));
+                if (processPCB->memoryBlock != NULL) // if the process is allocated
+                {
+                    push(&PriorityQueue, processPCB, processPCB->remainingTime);
+                    printf("process %d pushed in the priority  queue\n", processPCB->id);
+                }
+                else
+                {
+                    printf("process %d pushed in the waiting  queue\n", processPCB->id);
+                    enqueue(waitingQueue, processPCB);
+                }
             }
         } while (msg.mtype != -1 && msg.proc.arrival_time == getClk());
 
@@ -560,9 +606,27 @@ void SRTN()
         if (current_process != NULL && remainingTime[current_process->id] == 0 && PID != 0)
         {
             printf("entered 2nd at: %d\n", getClk());
+            deallocate_memory(current_process->memoryBlock);    
             finishProcess(current_process);
-            current_process = NULL;
             finished_processes++;
+            current_process = NULL;
+            while (!isEmpty(waitingQueue))
+            {
+                printf("entered again\n");
+                processPCB->memoryBlock = allocate_memory(root, Nearest_power_of_two(QueuePeek(waitingQueue)->memsize));
+                printf("allocated\n");
+                if (processPCB->memoryBlock != NULL)
+                {
+                    processPCB = dequeue(waitingQueue);
+                    printf("dequeued\n");
+                    push(&PriorityQueue, processPCB, processPCB->remainingTime);
+                    printf("process %d pushed in the priority queue at time %d \n", processPCB->id, getClk());
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
 
         // if there is a process running and there is a process in the queue with less remaining time, we will stop the current process and push it in the priority queue

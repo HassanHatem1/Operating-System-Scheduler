@@ -66,6 +66,16 @@ void destroyClk(bool terminateAll)
         killpg(getpgrp(), SIGINT);
     }
 }
+// ---------------------------Memory management struct--------------------------------
+typedef struct Block
+{ // struct for block of memory
+    int size;
+    int is_free;         // flag to check if the block is free or not
+    struct Block *buddy; // pointer to the buddy block for when we want to merge
+    struct Block *parent;
+    struct Block *left_child;
+    struct Block *right_child;
+} Block;
 // ---------------------------process contorl block structure --------------------------------
 struct PCB
 {
@@ -81,6 +91,7 @@ struct PCB
     int memsize;
     int start;
     int wait;
+    Block* memoryBlock;
     bool stopped;
 };
 
@@ -143,8 +154,7 @@ int isFull(struct Queue *queue)
 }
 
 // Queue is empty when size is 0
-int isEmpty(struct Queue *queue)
-{
+bool isEmpty(struct Queue* queue) {
     return (queue->size == 0);
 }
 
@@ -172,13 +182,15 @@ struct PCB *dequeue(struct Queue *queue)
     queue->size = queue->size - 1;
     return process;
 }
-struct PCB *front(struct Queue *queue)
+struct PCB *QueuePeek(struct Queue *queue)
 {
-    if (isEmpty(queue))
-    {
+    if(queue->front == -1) {
+        printf("Queue is empty\n");
         return NULL;
     }
-    return queue->array[queue->front];
+    else {
+        return queue->array[queue->front];
+    }
 }
 
 // Function to get rear of queue
@@ -297,15 +309,6 @@ void PQueuePrint(Node **head)
     }
 }
 // ---------------------------Memory management structs --------------------------------
-typedef struct Block
-{ // struct for block of memory
-    int size;
-    int is_free;         // flag to check if the block is free or not
-    struct Block *buddy; // pointer to the buddy block for when we want to merge
-    struct Block *parent;
-    struct Block *left_child;
-    struct Block *right_child;
-} Block;
 
 Block *CreateMemoryBlock(int memorySize)
 { // function to create the memory block
@@ -318,21 +321,19 @@ Block *CreateMemoryBlock(int memorySize)
     root->right_child = NULL;
     return root;
 }
-Block* allocate_memory(Block* root, int sizeOfProcess,bool* Isallocated) { // we will use size of process as the nearset (ceil) power of 2 of the memsize
-    // If the block is not free or too small, return NULL
-    if (!root->is_free || root->size < sizeOfProcess) {
-        *Isallocated=false;
+int Nearest_power_of_two(int x) {
+    return pow(2, ceil(log2(x)));
+}
+Block* allocate_memory(Block* root, int size) {
+    if (!root->is_free || root->size < size) {
         return NULL;
     }
 
-    // If the block is the right size, mark it as not free and return it
-    if (root->size == sizeOfProcess) {
-        *Isallocated=true;
+    if (root->size == size) {
         root->is_free = 0;
         return root;
     }
 
-    // If the block is too big, split it and try to allocate from the left child
     if (!root->left_child) {
         root->left_child = CreateMemoryBlock(root->size / 2);
         root->right_child = CreateMemoryBlock(root->size / 2);
@@ -342,40 +343,33 @@ Block* allocate_memory(Block* root, int sizeOfProcess,bool* Isallocated) { // we
         root->right_child->buddy = root->left_child;
     }
 
-    Block* nextblock = allocate_memory(root->left_child, sizeOfProcess,Isallocated);
-    if (!nextblock) { // If the left child failed(too small or not free), try the right child
-        nextblock = allocate_memory(root->right_child, sizeOfProcess,Isallocated);
+    Block* block = allocate_memory(root->left_child, size);
+    if (!block) {
+        block = allocate_memory(root->right_child, size);
     }
-    if (!nextblock) { // If the right child failed(too small or not free), return NULL
-       *Isallocated=false;
-    }
-    else
-    *Isallocated=true; 
-    return nextblock;
+    return block;
 }
-int Nearest_power_of_two(int x) {
-    return pow(2, ceil(log2(x)));
-}
+
 void deallocate_memory(Block* block) {
-    // If the block is already free, return
-    if (block->is_free) {
+    if (block == NULL || block->is_free) {
         return;
     }
 
-    // If the block is the root, mark it as free and return
     if (!block->parent) {
         block->is_free = 1;
         return;
     }
 
-    // If the buddy is free, merge with the buddy and deallocate the parent
-    if (block->buddy->is_free) {
+    if (block->buddy && block->buddy->is_free) {
         Block* parent = block->parent;
         parent->left_child = NULL;
         parent->right_child = NULL;
+        parent->is_free = 1;
+        free(block->buddy);
+        block->buddy = NULL;
+        free(block);
         deallocate_memory(parent);
-    }
-    else { // If the buddy is not free, just mark the block as free
+    } else {
         block->is_free = 1;
     }
 }
