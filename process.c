@@ -27,16 +27,14 @@ int main(int agrc, char *argv[])
 
     initClk();
 
-
     remainingtime = sharedMem[id];
     printf("remtime of process %d : %d\n", id, sharedMem[id]);
     int *prev = (int *)shmat(prevclkid, (void *)0, 0); // shared memory for remaining time of the process
     (*prev) = getClk();
 
-
     // the sceond while loop is to make sure that when a continue signal is sent and the process was stopped after the first while loop
     // to wait until the next clk cycle to start decrementing the remaining time
-    //to not decrement the remaining time extra time in the next clk cycle
+    // to not decrement the remaining time extra time in the next clk cycle
     while (sharedMem[id] > 0)
     {
 

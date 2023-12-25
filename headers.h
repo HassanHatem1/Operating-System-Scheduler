@@ -33,6 +33,8 @@ int getClk()
     return *shmaddr;
 }
 
+
+
 /*
  * All process call this function at the beginning to establish communication between them and the clock module.
  * Again, remember that the clock is only emulation!
@@ -57,7 +59,6 @@ void initClk()
  * Input: terminateAll: a flag to indicate whether that this is the end of simulation.
  *                      It terminates the whole system and releases resources.
  */
-
 void destroyClk(bool terminateAll)
 {
     shmdt(shmaddr);
@@ -66,16 +67,6 @@ void destroyClk(bool terminateAll)
         killpg(getpgrp(), SIGINT);
     }
 }
-// ---------------------------Memory management struct--------------------------------
-typedef struct Block
-{ // struct for block of memory
-    int size;
-    int is_free;         // flag to check if the block is free or not
-    struct Block *buddy; // pointer to the buddy block for when we want to merge
-    struct Block *parent;
-    struct Block *left_child;
-    struct Block *right_child;
-} Block;
 // ---------------------------process contorl block structure --------------------------------
 struct PCB
 {
@@ -88,14 +79,14 @@ struct PCB
     int remainingTime;
     int stop;
     int priority;
-    int memsize;
     int start;
     int wait;
-    Block* memoryBlock;
     bool stopped;
+    int memsize;
+    int startwait;
 };
 
-void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nFinish, int nRunning, int nStop, int nPriority, int nStart, int nWait, int nremainingTime,int nmemsize)
+void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nFinish, int nRunning, int nStop, int nPriority, int nStart, int nWait, int nremainingTime)
 {
     pcb->id = nID;
     pcb->pid = nPID;
@@ -105,12 +96,12 @@ void setPCB(struct PCB *pcb, int nID, int nPID, int nArrival, int nBurst, int nF
     pcb->running = nRunning;
     pcb->stop = nStop;
     pcb->remainingTime = nremainingTime;
-    pcb->memsize=nmemsize;
     pcb->priority = nPriority;
     pcb->start = nStart;
     pcb->wait = nWait;
 }
 //-------------------------Process and Process messages structs  ----------------------------------------------------------------
+
 typedef struct
 {
     int id;
@@ -154,7 +145,8 @@ int isFull(struct Queue *queue)
 }
 
 // Queue is empty when size is 0
-bool isEmpty(struct Queue* queue) {
+int isEmpty(struct Queue *queue)
+{
     return (queue->size == 0);
 }
 
@@ -182,15 +174,13 @@ struct PCB *dequeue(struct Queue *queue)
     queue->size = queue->size - 1;
     return process;
 }
-struct PCB *QueuePeek(struct Queue *queue)
+struct PCB *front(struct Queue *queue)
 {
-    if(queue->front == -1) {
-        printf("Queue is empty\n");
+    if (isEmpty(queue))
+    {
         return NULL;
     }
-    else {
-        return queue->array[queue->front];
-    }
+    return queue->array[queue->front];
 }
 
 // Function to get rear of queue
@@ -308,68 +298,246 @@ void PQueuePrint(Node **head)
         start = start->next;
     }
 }
-// ---------------------------Memory management structs --------------------------------
 
-Block *CreateMemoryBlock(int memorySize)
-{ // function to create the memory block
-    Block *root = (Block *)malloc(sizeof(Block)); // allocate memory for the block (dynamic as we dont know the total number of blocks)
-    root->size = memorySize; // root size== Total Memory Size
-    root->is_free = 1;
-    root->buddy = NULL;
+
+
+typedef struct buddy_treeNode buddy_treeNode;
+struct buddy_treeNode
+{
+    int process_id;
+    buddy_treeNode *left;
+    buddy_treeNode *right;
+    buddy_treeNode *parent;
+    int flag;
+    int size;
+    int begin;
+    int end;
+};
+
+buddy_treeNode *createRoot()
+{
+    buddy_treeNode *root = (buddy_treeNode *)malloc(sizeof(buddy_treeNode));
+    root->size = 1024;
+    root->begin = 0;
+    root->end = 1023;
+    root->flag = 0;
+    root->process_id = -1;
+    root->left = NULL;
+    root->right = NULL;
     root->parent = NULL;
-    root->left_child = NULL;
-    root->right_child = NULL;
     return root;
 }
-int Nearest_power_of_two(int x) {
-    return pow(2, ceil(log2(x)));
+
+void WriteToMemoryLogFile(buddy_treeNode *root, bool isAllocation);
+
+bool buddy_allocate(buddy_treeNode *root, int size, int process_id)
+{
+    if (root->size < size)
+    {
+        return false;
+    }
+    if (root->flag == 1)
+    {
+        return false;
+    }
+    if (root->size == size && root->left == NULL && root->right == NULL)
+    {
+        root->flag = 1;
+        root->process_id = process_id;
+        WriteToMemoryLogFile(root, true);
+        return true;
+    }
+    else
+    {
+
+        if (root->left == NULL)
+        {
+            root->left = (buddy_treeNode *)malloc(sizeof(buddy_treeNode));
+            root->left->size = root->size / 2;
+            root->left->begin = root->begin;
+            root->left->end = root->begin + root->left->size - 1;
+            root->left->flag = 0;
+            root->left->process_id = -1;
+            root->left->left = NULL;
+            root->left->right = NULL;
+            root->left->parent = root;
+        }
+        if (root->right == NULL)
+        {
+            root->right = (buddy_treeNode *)malloc(sizeof(buddy_treeNode));
+            root->right->size = root->size / 2;
+            root->right->begin = root->begin + root->right->size;
+            root->right->end = root->end;
+            root->right->flag = 0;
+            root->right->process_id = -1;
+            root->right->left = NULL;
+            root->right->right = NULL;
+            root->right->parent = root;
+        }
+        if (buddy_allocate(root->left, size, process_id))
+        {
+
+            return true;
+        }
+        else
+        {
+            return buddy_allocate(root->right, size, process_id);
+        }
+    }
 }
-Block* allocate_memory(Block* root, int size) {
-    if (!root->is_free || root->size < size) {
-        return NULL;
-    }
 
-    if (root->size == size) {
-        root->is_free = 0;
-        return root;
+bool buddy_deallocate(buddy_treeNode *root, int process_id)
+{
+    if (root->process_id == process_id)
+    {
+        WriteToMemoryLogFile(root, false);
+        root->flag = 0;
+        root->process_id = -1;
+        return true;
     }
+    else
+    {
+        if (root->left == NULL)
+        {
+            return false;
+        }
 
-    if (!root->left_child) {
-        root->left_child = CreateMemoryBlock(root->size / 2);
-        root->right_child = CreateMemoryBlock(root->size / 2);
-        root->left_child->parent = root;
-        root->right_child->parent = root;
-        root->left_child->buddy = root->right_child;
-        root->right_child->buddy = root->left_child;
-    }
+        bool deallocated = buddy_deallocate(root->left, process_id) || buddy_deallocate(root->right, process_id);
 
-    Block* block = allocate_memory(root->left_child, size);
-    if (!block) {
-        block = allocate_memory(root->right_child, size);
+        if (root->left != NULL && root->right != NULL && root->left->flag == 0 && root->right->flag == 0 && root->left->left == NULL && root->right->right == NULL)
+        {
+            free(root->left);
+            free(root->right);
+            root->left = NULL;
+            root->right = NULL;
+        }
+
+        return deallocated;
     }
-    return block;
 }
 
-void deallocate_memory(Block* block) {
-    if (block == NULL || block->is_free) {
+
+FILE *MemoryLogFile;
+
+void OpenMemoryLogFile()
+{
+    MemoryLogFile = fopen("MemoryLog", "w"); // Open the file in write mode
+
+    if (MemoryLogFile == NULL)
+    {
+        printf("Error opening MemoryLog  file.\n");
         return;
     }
+    fprintf(MemoryLogFile, "#At time x allocated y bytes for process z from i to j\n");
+}
 
-    if (!block->parent) {
-        block->is_free = 1;
-        return;
+void WriteToMemoryLogFile(buddy_treeNode *root, bool allocOrDealloc)
+{
+    if (allocOrDealloc)
+    {
+        fprintf(MemoryLogFile, "At time %d allocated %d bytes for process %d from %d to %d\n",
+                getClk(), root->size, root->process_id, root->begin, root->end);
     }
+    else
+    {
+        fprintf(MemoryLogFile, "At time %d freed %d bytes for process %d from %d to %d\n",
+                getClk(), root->size, root->process_id, root->begin, root->end);
+    }
+}
 
-    if (block->buddy && block->buddy->is_free) {
-        Block* parent = block->parent;
-        parent->left_child = NULL;
-        parent->right_child = NULL;
-        parent->is_free = 1;
-        free(block->buddy);
-        block->buddy = NULL;
-        free(block);
-        deallocate_memory(parent);
-    } else {
-        block->is_free = 1;
+// buddy_treeNode* buddy_allocate(buddy_treeNode *root, int size, int process_id)
+// {
+//     if (root->size < size || root->flag == 1)
+//     {
+//         return NULL;
+//     }
+//     if (root->size == size && root->left == NULL && root->right == NULL)
+//     {
+//         root->flag = 1;
+//         root->process_id = process_id;
+//         return root;
+//     }
+//     else
+//     {
+//         if (root->left == NULL)
+//         {
+//             root->left = (buddy_treeNode *)malloc(sizeof(buddy_treeNode));
+//             root->left->size = root->size / 2;
+//             root->left->begin = root->begin;
+//             root->left->end = root->begin + root->left->size - 1;
+//             root->left->flag = 0;
+//             root->left->process_id = -1;
+//             root->left->left = NULL;
+//             root->left->right = NULL;
+//             root->left->parent = root;
+//         }
+//         if (root->right == NULL)
+//         {
+//             root->right = (buddy_treeNode *)malloc(sizeof(buddy_treeNode));
+//             root->right->size = root->size / 2;
+//             root->right->begin = root->begin + root->right->size;
+//             root->right->end = root->end;
+//             root->right->flag = 0;
+//             root->right->process_id = -1;
+//             root->right->left = NULL;
+//             root->right->right = NULL;
+//             root->right->parent = root;
+//         }
+//         buddy_treeNode* allocated = buddy_allocate(root->left, size, process_id);
+//         if (allocated != NULL)
+//         {
+//             return allocated;
+//         }
+//         else
+//         {
+//             return buddy_allocate(root->right, size, process_id);
+//         }
+//     }
+// }
+
+// buddy_treeNode* buddy_deallocate(buddy_treeNode *root, int process_id)
+// {
+//     if (root->process_id == process_id)
+//     {
+//         root->flag = 0;
+//         root->process_id = -1;
+//         return root;
+//     }
+//     else
+//     {
+//         if (root->left == NULL)
+//         {
+//             return NULL;
+//         }
+
+//         buddy_treeNode* deallocated = buddy_deallocate(root->left, process_id);
+//         if (deallocated != NULL)
+//         {
+//             if (root->left->flag == 0 && root->right->flag == 0 && root->left->left == NULL && root->right->right == NULL)
+//             {
+//                 free(root->left);
+//                 free(root->right);
+//                 root->left = NULL;
+//                 root->right = NULL;
+//             }
+//             return deallocated;
+//         }
+//         else
+//         {
+//             return buddy_deallocate(root->right, process_id);
+//         }
+//     }
+// }
+
+void buddy_print(buddy_treeNode *root)
+{
+    if (root->left == NULL)
+    {
+        printf("begin:%d end:%d size:%d flag:%d process_id:%d\n", root->begin, root->end, root->size, root->flag, root->process_id);
+    }
+    else
+    {
+        buddy_print(root->left);
+        buddy_print(root->right);
     }
 }

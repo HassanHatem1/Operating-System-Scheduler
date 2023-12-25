@@ -7,21 +7,6 @@ int msgq_id;
 
 void clearResources(int);
 
-// sort the received processs according arrival time to send them in order ;
-
-// Comparator function
-// int comp(const void *a, const void *b)
-// { // compare to sort struct process;
-//     Process *p1 = (Process *)a;
-//     Process *p2 = (Process *)b;
-//     if (p1->arrival_time > p2->arrival_time)
-//         return 1;
-//     else if (p1->arrival_time < p2->arrival_time)
-//         return -1;
-//     else
-//         return 0;
-// }
-
 int main(int argc, char *argv[])
 {
     signal(SIGINT, clearResources);
@@ -83,7 +68,7 @@ int main(int argc, char *argv[])
     for (int i = 0; i < processes_count; i++)
     { 
         // here t%d will make fscanf ignore the space and read the number only
-        fscanf(file, "%d\t%d\t%d\t%d\t%d", &processes[i].id, &processes[i].arrival_time, &processes[i].running_time, &processes[i].priority,&processes[i].memsize);
+        fscanf(file, "%d\t%d\t%d\t%d\t%d", &processes[i].id, &processes[i].arrival_time, &processes[i].running_time, &processes[i].priority, &processes[i].memsize);
 
         if (processes[i].arrival_time > 1000)
         {
@@ -95,7 +80,7 @@ int main(int argc, char *argv[])
 
     printf("processes data is read successfully\n");
     for (int i = 0; i < processes_count; i++)
-        printf("Process %d: id : %d arrival: %d runtime : %d priority : %d memsize : %d\n", i + 1, processes[i].id, processes[i].arrival_time, processes[i].running_time, processes[i].priority,processes[i].memsize);
+        printf("Process %d: id : %d arrival: %d runtime : %d priority : %d memsize : %d\n", i + 1, processes[i].id, processes[i].arrival_time, processes[i].running_time, processes[i].priority, processes[i].memsize);
 
 
     // 2. Ask the user for the chosen sc1heduling algorithm and its parameters, if there are any.
@@ -216,7 +201,7 @@ int main(int argc, char *argv[])
                 perror("Error in sending the message\n");
                 exit(-1);
             }
-            printf("Process %d sent to the scheduler at time %d  and index %d \n", processes[index].id, getClk(), index);
+            printf("Process %d sent to the scheduler at time %d  and indx %d \n", processes[index].id, getClk(), index);
             index++;
         }
     }
