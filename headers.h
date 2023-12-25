@@ -421,14 +421,13 @@ FILE *MemoryLogFile;
 
 void OpenMemoryLogFile()
 {
-    MemoryLogFile = fopen("MemoryLog", "w"); // Open the file in write mode
+    MemoryLogFile = fopen("Memory.log", "w"); // Open the file in write mode
 
     if (MemoryLogFile == NULL)
     {
         printf("Error opening MemoryLog  file.\n");
         return;
     }
-    fprintf(MemoryLogFile, "#At time x allocated y bytes for process z from i to j\n");
 }
 
 void WriteToMemoryLogFile(buddy_treeNode *root, bool allocOrDealloc)

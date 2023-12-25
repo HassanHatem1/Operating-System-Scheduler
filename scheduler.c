@@ -108,15 +108,13 @@ void intializeSharedMemory()
 // open the log file
 void OpenSchedulerLogFile()
 {
-    SchedulerLogFile = fopen("SchedulerLog", "w"); // Open the file in write mode
+    SchedulerLogFile = fopen("Scheduler.log", "w"); // Open the file in write mode
 
     if (SchedulerLogFile == NULL)
     {
         printf("Error opening SchedularLog  file.\n");
         return;
     }
-
-    fprintf(SchedulerLogFile, "#At time x process y state arr w total z remain y wait k \n");
 }
 
 // round to 2 decimal places
@@ -128,7 +126,7 @@ double round2dp(double num)
 // open the performance file and write the statistics
 void OpenSchedulerPerfFile()
 {
-    SchedulerPerfFile = fopen("SchedulerPerf", "w"); // Open the file in write mode
+    SchedulerPerfFile = fopen("Scheduler.perf", "w"); // Open the file in write mode
     if (SchedulerPerfFile == NULL)
     {
         printf("Error opening SchedularPerf  file.\n");
@@ -291,6 +289,8 @@ void HPF()
 
     // In HPF we need to sort the processes according to their priority, so we will use a priority queue
     Node *PriorityQueue = NULL;
+
+    // create the root node with size 1024
     buddy_treeNode *root = createRoot();
     Node *WaitingQueue = NULL;
 
