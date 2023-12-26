@@ -33,8 +33,6 @@ int getClk()
     return *shmaddr;
 }
 
-
-
 /*
  * All process call this function at the beginning to establish communication between them and the clock module.
  * Again, remember that the clock is only emulation!
@@ -299,8 +297,6 @@ void PQueuePrint(Node **head)
     }
 }
 
-
-
 typedef struct buddy_treeNode buddy_treeNode;
 struct buddy_treeNode
 {
@@ -328,10 +324,36 @@ buddy_treeNode *createRoot()
     return root;
 }
 
-void WriteToMemoryLogFile(buddy_treeNode *root, bool isAllocation);
+void WriteToMemoryLogFile(buddy_treeNode *root, bool isAllocation, int process_real_size);
 
-bool buddy_allocate(buddy_treeNode *root, int size, int process_id)
+buddy_treeNode *find_node(buddy_treeNode *root, int size)
 {
+    if (root == NULL || root->flag == 1)
+    {
+        return NULL;
+    }
+    if (root->size == size && root->left == NULL && root->right == NULL)
+    {
+        return root;
+    }
+    buddy_treeNode *left = find_node(root->left, size);
+    if (left != NULL)
+    {
+        return left;
+    }
+    return find_node(root->right, size);
+}
+
+bool buddy_allocate(buddy_treeNode *root, int size, int process_id, int process_real_size)
+{
+    buddy_treeNode *node = find_node(root, size);
+    if (node != NULL)
+    {
+        node->flag = 1;
+        node->process_id = process_id;
+        WriteToMemoryLogFile(node, true, process_real_size);
+        return true;
+    }
     if (root->size < size)
     {
         return false;
@@ -340,57 +362,45 @@ bool buddy_allocate(buddy_treeNode *root, int size, int process_id)
     {
         return false;
     }
-    if (root->size == size && root->left == NULL && root->right == NULL)
+    if (root->left == NULL)
     {
-        root->flag = 1;
-        root->process_id = process_id;
-        WriteToMemoryLogFile(root, true);
+        root->left = (buddy_treeNode *)malloc(sizeof(buddy_treeNode));
+        root->left->size = root->size / 2;
+        root->left->begin = root->begin;
+        root->left->end = root->begin + root->left->size - 1;
+        root->left->flag = 0;
+        root->left->process_id = -1;
+        root->left->left = NULL;
+        root->left->right = NULL;
+        root->left->parent = root;
+    }
+    if (root->right == NULL)
+    {
+        root->right = (buddy_treeNode *)malloc(sizeof(buddy_treeNode));
+        root->right->size = root->size / 2;
+        root->right->begin = root->begin + root->right->size;
+        root->right->end = root->end;
+        root->right->flag = 0;
+        root->right->process_id = -1;
+        root->right->left = NULL;
+        root->right->right = NULL;
+        root->right->parent = root;
+    }
+    if (buddy_allocate(root->left, size, process_id, process_real_size))
+    {
         return true;
     }
     else
     {
-
-        if (root->left == NULL)
-        {
-            root->left = (buddy_treeNode *)malloc(sizeof(buddy_treeNode));
-            root->left->size = root->size / 2;
-            root->left->begin = root->begin;
-            root->left->end = root->begin + root->left->size - 1;
-            root->left->flag = 0;
-            root->left->process_id = -1;
-            root->left->left = NULL;
-            root->left->right = NULL;
-            root->left->parent = root;
-        }
-        if (root->right == NULL)
-        {
-            root->right = (buddy_treeNode *)malloc(sizeof(buddy_treeNode));
-            root->right->size = root->size / 2;
-            root->right->begin = root->begin + root->right->size;
-            root->right->end = root->end;
-            root->right->flag = 0;
-            root->right->process_id = -1;
-            root->right->left = NULL;
-            root->right->right = NULL;
-            root->right->parent = root;
-        }
-        if (buddy_allocate(root->left, size, process_id))
-        {
-
-            return true;
-        }
-        else
-        {
-            return buddy_allocate(root->right, size, process_id);
-        }
+        return buddy_allocate(root->right, size, process_id, process_real_size);
     }
 }
 
-bool buddy_deallocate(buddy_treeNode *root, int process_id)
+bool buddy_deallocate(buddy_treeNode *root, int process_id, int process_real_size)
 {
     if (root->process_id == process_id)
     {
-        WriteToMemoryLogFile(root, false);
+        WriteToMemoryLogFile(root, false, process_real_size);
         root->flag = 0;
         root->process_id = -1;
         return true;
@@ -402,7 +412,7 @@ bool buddy_deallocate(buddy_treeNode *root, int process_id)
             return false;
         }
 
-        bool deallocated = buddy_deallocate(root->left, process_id) || buddy_deallocate(root->right, process_id);
+        bool deallocated = buddy_deallocate(root->left, process_id, process_real_size) || buddy_deallocate(root->right, process_id, process_real_size);
 
         if (root->left != NULL && root->right != NULL && root->left->flag == 0 && root->right->flag == 0 && root->left->left == NULL && root->right->right == NULL)
         {
@@ -416,7 +426,6 @@ bool buddy_deallocate(buddy_treeNode *root, int process_id)
     }
 }
 
-
 FILE *MemoryLogFile;
 
 void OpenMemoryLogFile()
@@ -428,19 +437,21 @@ void OpenMemoryLogFile()
         printf("Error opening MemoryLog  file.\n");
         return;
     }
+    fprintf(MemoryLogFile, "#At time x allocated y bytes for process z from i to j\n");
 }
 
-void WriteToMemoryLogFile(buddy_treeNode *root, bool allocOrDealloc)
+void WriteToMemoryLogFile(buddy_treeNode *root, bool allocOrDealloc, int process_real_size)
 {
+       
     if (allocOrDealloc)
     {
         fprintf(MemoryLogFile, "At time %d allocated %d bytes for process %d from %d to %d\n",
-                getClk(), root->size, root->process_id, root->begin, root->end);
+                getClk(), process_real_size, root->process_id, root->begin, root->end);
     }
     else
     {
         fprintf(MemoryLogFile, "At time %d freed %d bytes for process %d from %d to %d\n",
-                getClk(), root->size, root->process_id, root->begin, root->end);
+                getClk(), process_real_size, root->process_id, root->begin, root->end);
     }
 }
 
