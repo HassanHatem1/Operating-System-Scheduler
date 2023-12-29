@@ -442,7 +442,7 @@ void OpenMemoryLogFile()
 
 void WriteToMemoryLogFile(buddy_treeNode *root, bool allocOrDealloc, int process_real_size)
 {
-       
+
     if (allocOrDealloc)
     {
         fprintf(MemoryLogFile, "At time %d allocated %d bytes for process %d from %d to %d\n",
@@ -454,90 +454,6 @@ void WriteToMemoryLogFile(buddy_treeNode *root, bool allocOrDealloc, int process
                 getClk(), process_real_size, root->process_id, root->begin, root->end);
     }
 }
-
-// buddy_treeNode* buddy_allocate(buddy_treeNode *root, int size, int process_id)
-// {
-//     if (root->size < size || root->flag == 1)
-//     {
-//         return NULL;
-//     }
-//     if (root->size == size && root->left == NULL && root->right == NULL)
-//     {
-//         root->flag = 1;
-//         root->process_id = process_id;
-//         return root;
-//     }
-//     else
-//     {
-//         if (root->left == NULL)
-//         {
-//             root->left = (buddy_treeNode *)malloc(sizeof(buddy_treeNode));
-//             root->left->size = root->size / 2;
-//             root->left->begin = root->begin;
-//             root->left->end = root->begin + root->left->size - 1;
-//             root->left->flag = 0;
-//             root->left->process_id = -1;
-//             root->left->left = NULL;
-//             root->left->right = NULL;
-//             root->left->parent = root;
-//         }
-//         if (root->right == NULL)
-//         {
-//             root->right = (buddy_treeNode *)malloc(sizeof(buddy_treeNode));
-//             root->right->size = root->size / 2;
-//             root->right->begin = root->begin + root->right->size;
-//             root->right->end = root->end;
-//             root->right->flag = 0;
-//             root->right->process_id = -1;
-//             root->right->left = NULL;
-//             root->right->right = NULL;
-//             root->right->parent = root;
-//         }
-//         buddy_treeNode* allocated = buddy_allocate(root->left, size, process_id);
-//         if (allocated != NULL)
-//         {
-//             return allocated;
-//         }
-//         else
-//         {
-//             return buddy_allocate(root->right, size, process_id);
-//         }
-//     }
-// }
-
-// buddy_treeNode* buddy_deallocate(buddy_treeNode *root, int process_id)
-// {
-//     if (root->process_id == process_id)
-//     {
-//         root->flag = 0;
-//         root->process_id = -1;
-//         return root;
-//     }
-//     else
-//     {
-//         if (root->left == NULL)
-//         {
-//             return NULL;
-//         }
-
-//         buddy_treeNode* deallocated = buddy_deallocate(root->left, process_id);
-//         if (deallocated != NULL)
-//         {
-//             if (root->left->flag == 0 && root->right->flag == 0 && root->left->left == NULL && root->right->right == NULL)
-//             {
-//                 free(root->left);
-//                 free(root->right);
-//                 root->left = NULL;
-//                 root->right = NULL;
-//             }
-//             return deallocated;
-//         }
-//         else
-//         {
-//             return buddy_deallocate(root->right, process_id);
-//         }
-//     }
-// }
 
 void buddy_print(buddy_treeNode *root)
 {

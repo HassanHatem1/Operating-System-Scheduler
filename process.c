@@ -6,7 +6,7 @@
 int remainingtime;
 int main(int agrc, char *argv[])
 {
-    key_t key = ftok("SharedMemoryKeyFile", sharedMemKey); // for shared memory
+    key_t key = ftok("SharedMemoryKeyFile", sharedMemKey); // for shar//ed memory
 
     int id = atoi(argv[0]); // id of process (to send it in the notification to the scheduler)
 

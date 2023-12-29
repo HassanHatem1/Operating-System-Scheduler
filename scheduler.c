@@ -115,7 +115,7 @@ void OpenSchedulerLogFile()
         printf("Error opening SchedularLog  file.\n");
         return;
     }
-    
+
     fprintf(SchedulerLogFile, "#At time x process y state arr w total z remain y wait k\n");
 }
 
@@ -294,7 +294,7 @@ void HPF()
 
     // create the root node with size 1024
     buddy_treeNode *root = createRoot();
-    struct Queue *WaitingQueue = createQueue(process_count);  //FIFO
+    struct Queue *WaitingQueue = createQueue(process_count); // FIFO
 
     // intialize the remaining time shared memory
     remainingTime = (int *)shmat(sharedMemory_id, (void *)0, 0);
@@ -329,7 +329,7 @@ void HPF()
                 else
                 {
                     printf("process %d pushed in the waiting queue at %d\n", processPCB->id, getClk());
-                    //push(&WaitingQueue, processPCB, processPCB->memsize);
+                    // push(&WaitingQueue, processPCB, processPCB->memsize);
                     enqueue(WaitingQueue, processPCB);
                 }
             }
@@ -472,7 +472,7 @@ void RR()
         }
 
         // if there is a process running and its quantum is finished or even before the quantum is finished its remaining time became = 0
-        // we will finish it and set the current process to NULL and increment the finished processes counter
+        // we will finish it and /set the current process to NULL and increment the finished processes counter
         if (isRunningProcess && (((getClk() - startTime) == quantum_time) || (remainingTime[current_running_process->id] == 0)))
         {
 
@@ -507,7 +507,7 @@ void RR()
             }
 
             // if remtime is not 0, then the process is not finished and we need to stop it and enqueue it again
-            // but before we enque it again, we need to enque all the other processes that arrived at this time if there is any
+            // but before we en/que it again, we need to enque all the other processes that arrived at this time if there is any
             else
             {
 
@@ -533,7 +533,7 @@ void RR()
                             else
                             {
                                 printf("process %d pushed in the waiting queue at %d\n", processPCB->id, getClk());
-                                //push(&WaitingQueue, processPCB, processPCB->memsize);
+                                // push(&WaitingQueue, processPCB, processPCB->memsize);
                                 enqueue(WaitingQueue, processPCB);
                             }
                         }

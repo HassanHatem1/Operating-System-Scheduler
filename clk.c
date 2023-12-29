@@ -9,7 +9,7 @@
 
 int shmid;
 
-/* Clear the resources before exit */
+/* Clear /the resources before exit */
 void cleanup(int signum)
 {
     shmctl(shmid, IPC_RMID, NULL);

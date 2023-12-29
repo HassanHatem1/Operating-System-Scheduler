@@ -28,7 +28,6 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-
     // 1. Read the input files.
 
     // open the file that contains the processes data
@@ -40,7 +39,7 @@ int main(int argc, char *argv[])
         exit(-1);
     }
 
-    // get the number of processes from the document by counting the lines
+    // get the number of p//rocesses from the document by counting the lines
     int processes_count = 0;
     char ch;
     while (!feof(file))
@@ -52,7 +51,7 @@ int main(int argc, char *argv[])
     fclose(file);
 
     // to exclude the first line that contains the headers
-    processes_count--; 
+    processes_count--;
     printf("Number of processes: %d\n", processes_count);
 
     // create an array of processes with the size of the number of processes
@@ -66,7 +65,7 @@ int main(int argc, char *argv[])
 
     // read the processes data from the document and store them in the array
     for (int i = 0; i < processes_count; i++)
-    { 
+    {
         // here t%d will make fscanf ignore the space and read the number only
         fscanf(file, "%d\t%d\t%d\t%d\t%d", &processes[i].id, &processes[i].arrival_time, &processes[i].running_time, &processes[i].priority, &processes[i].memsize);
 
@@ -81,7 +80,6 @@ int main(int argc, char *argv[])
     printf("processes data is read successfully\n");
     for (int i = 0; i < processes_count; i++)
         printf("Process %d: id : %d arrival: %d runtime : %d priority : %d memsize : %d\n", i + 1, processes[i].id, processes[i].arrival_time, processes[i].running_time, processes[i].priority, processes[i].memsize);
-
 
     // 2. Ask the user for the chosen sc1heduling algorithm and its parameters, if there are any.
 
@@ -106,7 +104,6 @@ int main(int argc, char *argv[])
         scanf("%d", &quantum);
     }
 
-
     // 3. Initiate and create the scheduler and clock processes.
 
     // Create the scheduler process
@@ -120,7 +117,7 @@ int main(int argc, char *argv[])
     {
         // compile the C program named scheduler.c using the gcc compiler
         // The compiled output is named scheduler.out.
-    
+
         printf("Scheduling..\n");
 
         // sprintf is used to convert the integer arguments to strings to be passed to the execl function
@@ -161,7 +158,7 @@ int main(int argc, char *argv[])
     }
     else if (clock_pid == 0) // This is the clock process
     {
-        int success = execl("./clk.out", "clk", NULL); 
+        int success = execl("./clk.out", "clk", NULL);
         if (success == -1)
         {
             printf("Error in executing clk.out\n");
@@ -174,10 +171,8 @@ int main(int argc, char *argv[])
     initClk();
     printf("generator clk start : %d \n", getClk());
 
-
     // 5. Create a data structure for processes and provide it with its parameters.
     // --> already done in the beginning of the main function
-
 
     // 6. Send the information to the scheduler at the appropriate time.
 
@@ -193,7 +188,7 @@ int main(int argc, char *argv[])
 
             // Create a message and send it to the message queue
             Msgbuff message;
-            message.mtype = 1; 
+            message.mtype = 1;
             message.proc = processes[index];
             int send_val = msgsnd(msgq_id, &message, sizeof(message.proc), !IPC_NOWAIT);
             if (send_val == -1)
@@ -209,14 +204,13 @@ int main(int argc, char *argv[])
     // wait for the scheduler to finish
     waitpid(scheduler_pid, NULL, 0);
 
-
     // 7. Clear clock resources
     // destroyClk(true);
 }
 
 void clearResources(int signum)
 {
-    //Clears all resources in case of interruption
+    // Clears all resources in case of interruption
     printf("Clearing due to interruption\n");
     destroyClk(true);
     msgctl(msgq_id, IPC_RMID, (struct msqid_ds *)0);
