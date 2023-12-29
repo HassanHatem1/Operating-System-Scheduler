@@ -8,7 +8,7 @@
 - [Output](#🚀-Output)  
 - [Algorithms Used in schedualing ](#Algorithms-Used-in-the-scheduler)
 - [Algorithm Used in memory Allocation](#Algorithm-Used-in-Memory-Allocation)
--[strucutre of the processes calling](#📰-processes-calling-structure)
+- [strucutre of the processes calling](#📰-processes-calling-structure)
 - [Contributing](#contributing)
 ## Introduction
 
