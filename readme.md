@@ -5,20 +5,19 @@
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
 - [Usage](#usage)
-- [Output](#🚀-Output)  
+- [input testcase and its results](#🚀-input-testcase-and-its-results)  
 - [Algorithms Used in schedualing ](#Algorithms-Used-in-the-scheduler)
 - [Algorithm Used in memory Allocation](#Algorithm-Used-in-Memory-Allocation)
-- [strucutre of the processes calling](#📰-processes-calling-structure)
+- [structure of the processes calling](#📰-processes-calling-structure)
 - [Contributing](#contributing)
 ## Introduction
-
-A CPU scheduler that determines an order for the execution of its scheduled processes. Operating System Scheduler decides which process will run according to a certain data structure that keeps track of the processes in the system and their status. In addition , a memory allocator that manages the computer memory and determines which process will be loaded into the memory and which process will be removed from the memory.
-
+The operating system employs a CPU scheduler to establish the sequence in which scheduled processes are executed. This scheduler relies on a designated data structure that maintains an updated record of the processes within the system and their respective statuses. Simultaneously, a memory allocator assumes the responsibility of overseeing computer memory, deciding which processes are to be loaded into the memory and which ones are to be evicted. The intricate coordination between the CPU scheduler and the memory allocator ensures efficient utilization of system resources, optimizing overall system performance.
 ## Getting Started
 
 1- Clone the repository
 ```bash
   git clone https://github.com/mtheggi/Operating-System-Scheduler.git
+  cd Operating-System-Scheduler
 ```
 
 ### Prerequisites
@@ -27,7 +26,7 @@ A CPU scheduler that determines an order for the execution of its scheduled proc
 * download the following packages
 ```bash
   sudo apt-get install build-essential
-  sudo dnf install gcc
+  sudo apt install gcc
 ```
 ## Usage
 
@@ -51,17 +50,22 @@ A CPU scheduler that determines an order for the execution of its scheduled proc
 | 3  | Round Robin (RR).| 
 
 
-## 🚀 Output 
-* memory Log output 
-![altimg](./imgs/sched.png)
+## 🚀 input testcase and  its results (HPF algorithm ) 
+* testcase input for HPF algorithm 
+
+![altimg](./imgs/testcase.png)
 
 * scheduler Log output
-![altimg](./imgs/schedLog.png)
+
+![altimg](./imgs/SchedularLog.png)
+
+* memory Log output 
+
+![altimg](./imgs/memoryLog.png)
 
 * scheduler statitics 
 
-
-![altimg](./imgs/sched.pref.png)
+![altimg](./imgs/schedularPref.png)
 
 
 ## Algorithms Used in the scheduler
